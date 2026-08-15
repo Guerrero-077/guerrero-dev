@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { exec, execFile } from "node:child_process";
 import * as net from "node:net";
 import { createRequire } from "node:module";
 import { promisify } from "node:util";
@@ -6,6 +6,7 @@ import pg from "pg";
 import { loadConfig, pingOllama } from "@guerrero-dev/infrastructure";
 
 const execFileAsync = promisify(execFile);
+const execAsync = promisify(exec);
 const require = createRequire(import.meta.url);
 
 type CheckStatus = "ok" | "warn" | "fail" | "info";
@@ -39,10 +40,12 @@ function checkNode(): CheckResult {
 
 async function checkCommand(label: string, command: string, args: string[]): Promise<CheckResult> {
   try {
-    // shell: true es necesario en Windows para resolver shims .cmd/.ps1
-    // (p. ej. pnpm instalado vía corepack) — execFile sin shell solo
-    // encuentra ejecutables .exe reales en PATH.
-    await execFileAsync(command, args, { shell: true });
+    // `exec` (vía shell) es necesario en Windows para resolver shims
+    // .cmd/.ps1 (p. ej. pnpm instalado vía corepack) — `execFile` sin
+    // shell solo encuentra ejecutables .exe reales en PATH. `command` y
+    // `args` son siempre literales fijos del propio código, nunca input
+    // externo, así que concatenarlos en un solo string es seguro aquí.
+    await execAsync([command, ...args].join(" "));
     return { label, status: "ok" };
   } catch {
     return { label, status: "fail", detail: `no se encontró \`${command}\` en PATH` };
