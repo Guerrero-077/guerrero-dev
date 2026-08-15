@@ -21,6 +21,7 @@
     "test:integration": "cross-env RUN_INTEGRATION_TESTS=true vitest run tests/integration",
     "test:e2e": "cross-env RUN_INTEGRATION_TESTS=true vitest run tests/e2e",
     "migrate": "tsx scripts/migrate.ts",
+    "benchmark:embeddings": "tsx scripts/benchmark-embeddings.ts",
     "clean": "pnpm -r run clean && rimraf node_modules"
   },
   "devDependencies": {

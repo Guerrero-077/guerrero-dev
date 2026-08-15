@@ -12,6 +12,18 @@ describe("loadConfig", () => {
     expect(config.NODE_ENV).toBe("development");
     expect(config.API_PORT).toBe(3000);
     expect(config.DATABASE_URL).toContain("postgresql://");
+    expect(config.OLLAMA_EMBEDDING_MODEL).toBe("qwen3-embedding:4b");
+    expect(config.EMBEDDING_DIMENSIONS).toBe(1024);
+  });
+
+  it("respeta EMBEDDING_DIMENSIONS y OLLAMA_EMBEDDING_MODEL provistos por el entorno", () => {
+    const config = loadConfig({
+      OLLAMA_EMBEDDING_MODEL: "qwen3-embedding:8b",
+      EMBEDDING_DIMENSIONS: "2560",
+    });
+
+    expect(config.OLLAMA_EMBEDDING_MODEL).toBe("qwen3-embedding:8b");
+    expect(config.EMBEDDING_DIMENSIONS).toBe(2560);
   });
 
   it("respeta valores provistos por el entorno", () => {

@@ -20,6 +20,13 @@ const envSchema = z.object({
   OLLAMA_BASE_URL: z.string().url().default("http://localhost:11434"),
   OLLAMA_DEFAULT_MODEL: z.string().default("gemma3:4b"),
 
+  // Embeddings (Fase 4.4 — docs/fase-4-memory-engine.md): qwen3-embedding:4b
+  // vía Ollama, single provider para texto + código + español. 1024 es la
+  // dimensión objetivo tras truncar el nativo 2560 vía MRL; queda pendiente
+  // de validación por benchmark antes de fijar vector(1024) en PostgreSQL.
+  OLLAMA_EMBEDDING_MODEL: z.string().default("qwen3-embedding:4b"),
+  EMBEDDING_DIMENSIONS: z.coerce.number().int().positive().default(1024),
+
   // Cloud LLM (opcional; abstracción vía LLM Gateway)
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),

@@ -1,17 +1,23 @@
 import type { Embedding } from "@guerrero-dev/domain";
 
 /**
- * Contrato mínimo del proveedor de embeddings (Fase 4.1 §8, Fase 4.3 §8).
- * Excepción deliberada al orden 4.2→4.9: se define ya para poder congelar
- * la forma de `memory_embeddings` antes de la migración, pero no se
- * implementa todavía. El provider real (local vía Ollama, comparado
- * contra alternativas por calidad/latencia/RAM/VRAM en español + inglés
- * técnico + código) se elige en Fase 4.4 — recién ahí se fija
- * `dimensions` y el índice HNSW/IVFFlat en PostgreSQL.
+ * Contrato del proveedor de embeddings (Fase 4.1 §8, Fase 4.3 §8, decisión
+ * Fase 4.4 en docs/fase-4-memory-engine.md).
+ *
+ * `dimensions` es la dimensión final que expone el provider (p.ej. 1024
+ * tras truncar vía MRL), no necesariamente la dimensión nativa del modelo
+ * subyacente — eso es un detalle de la implementación concreta.
+ *
+ * `embedBatch` no es azúcar sintáctico sobre `embed`: existe para que un
+ * análisis de repositorio con cientos de memorias resulte en una sola
+ * llamada a Ollama con N textos en vez de N llamadas HTTP secuenciales.
+ * Toda implementación debe enviar los textos en un único request cuando el
+ * runtime subyacente lo soporte.
  */
 export interface IEmbeddingProvider {
   readonly model: string;
   readonly dimensions: number;
 
   embed(text: string): Promise<Embedding>;
+  embedBatch(texts: readonly string[]): Promise<readonly Embedding[]>;
 }
