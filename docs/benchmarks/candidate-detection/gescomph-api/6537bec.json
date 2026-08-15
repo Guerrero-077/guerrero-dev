@@ -1,0 +1,19 @@
+{
+  "commit": "6537bec",
+  "project": "gescomph-api",
+  "date": "2025-11-27",
+  "message": "fix(diagram-mer): fix diagram mer",
+  "signal": "Regenera el diagrama Entity Framework (.edmx/.designer.cs/.tt) para reflejar el modelo actual — archivos generados por herramienta, no escritos a mano.",
+  "classification": ["noise"],
+  "importance": 0.05,
+  "candidate": null,
+  "reason": "El commit más engañoso por magnitud de todo el dataset combinado: 38 archivos, 4117 inserciones — mayor que a7942f0 (pasarela de pagos, importance 0.85) o incluso que a384c61. Pero es prácticamente todo output autogenerado de una herramienta de diagramación EF (.edmx, .designer.cs, .tt) sincronizado con el modelo real, no una decisión nueva. Confirma el hallazgo de a2dd733 en sentido inverso: así como una magnitud chica puede ser muy importante, una magnitud enorme puede ser irrelevante. Una regla basada en 'extensión/patrón de archivo autogenerado' (.designer.cs, .edmx, .tt) sería más confiable acá que cualquier umbral de líneas cambiadas.",
+  "detectability": "deterministic",
+  "magnitude": {
+    "filesChanged": 38,
+    "linesChanged": 4117,
+    "note": "mayormente archivos generados por herramienta"
+  },
+  "surface": ["database"],
+  "relations": []
+}

@@ -1,0 +1,15 @@
+{
+  "commit": "af3fe10",
+  "project": "gescomph-api",
+  "date": "2025-11-16",
+  "message": "feat(notification): Add configuration class for the Notification entity",
+  "signal": "Agrega una clase de configuración EF (fluent API) para la entidad Notification.",
+  "classification": ["database_change"],
+  "importance": 0.15,
+  "candidate": null,
+  "reason": "Un solo archivo de configuración EF, sin lógica de negocio ni decisión de diseño nueva — sigue el patrón ya establecido en 232a59d (una Configuration class por entidad). Buen ejemplo de 'feat' que en realidad es trabajo mecánico repetitivo, no una decisión nueva; el prefijo 'feat' tampoco es garantía de importancia, igual que 'chore' no garantiza ruido en 232a59d.",
+  "detectability": "semantic",
+  "magnitude": { "filesChanged": 1, "linesAdded": 45 },
+  "surface": ["infrastructure", "database"],
+  "relations": [{ "type": "reinforces", "targetCommit": "232a59d" }]
+}

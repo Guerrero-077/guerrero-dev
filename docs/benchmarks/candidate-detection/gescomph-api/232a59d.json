@@ -1,0 +1,24 @@
+{
+  "commit": "232a59d",
+  "project": "gescomph-api",
+  "date": "2025-11-16",
+  "message": "chore(HU-00): initial projet",
+  "signal": "Scaffold completo de la API .NET: capas Business/Data/Entity/WebGESCOMPH, UnitOfWork+Repository genérico, JWT (TokenBusiness/ICurrentUser), Mapster para mapping, docker-compose para la DB.",
+  "classification": ["architectural_decision", "dependency_change", "configuration_change"],
+  "importance": 0.85,
+  "candidate": "gescomph-api (.NET) usa arquitectura por capas (Business/Data/Entity/Web) con patrón Repository genérico + UnitOfWork, JWT propio (TokenBusiness/ICurrentUser) para auth, Mapster para mapping DTO<->entidad, y PostgreSQL vía docker-compose.",
+  "reason": "Prefijo 'chore(HU-00)' es engañoso para un detector ingenuo basado en prefijos: 'chore' normalmente sugiere ruido (como a1dc883 en Dataset A), pero acá es el commit fundacional de toda la arquitectura — 100+ archivos, patrones que el resto del historial reutiliza. Confirma que el prefijo del mensaje NO alcanza como regla determinista; hay que mirar magnitud/superficie real.",
+  "detectability": "contextual",
+  "magnitude": { "filesChanged": 560, "linesAdded": 27284, "note": "scaffold completo del backend .NET" },
+  "surface": [
+    "domain",
+    "application",
+    "infrastructure",
+    "api",
+    "database",
+    "configuration",
+    "dependencies",
+    "ci_cd"
+  ],
+  "relations": []
+}

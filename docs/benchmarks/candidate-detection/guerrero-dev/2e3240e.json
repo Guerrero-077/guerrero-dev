@@ -1,0 +1,14 @@
+{
+  "commit": "2e3240e",
+  "date": "2026-08-14",
+  "message": "docs: .editorconfig + ADR 0001 (core tech selection) y 0002 (agent engine abstraction)",
+  "signal": "Formaliza dos decisiones arquitectónicas como Architecture Decision Records.",
+  "classification": ["architectural_decision", "documentation"],
+  "importance": 0.6,
+  "candidate": "ADR 0001 (selección de tecnología core) y ADR 0002 (abstracción del agent engine) quedaron documentadas formalmente en docs/adr/.",
+  "reason": "El path (docs/adr/) hace trivial detectar 'esto es una decisión arquitectónica formal' por regla — a diferencia de 666edb9 o d3b5804, donde la naturaleza arquitectónica no está marcada estructuralmente. Pero el contenido real de cada ADR (qué se decidió y por qué) sigue necesitando lectura semántica; el path solo garantiza que vale la pena leerlo.",
+  "detectability": "semantic",
+  "magnitude": { "filesChanged": 3, "linesAdded": 112 },
+  "surface": ["documentation", "configuration"],
+  "relations": []
+}

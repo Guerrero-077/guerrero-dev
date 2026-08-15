@@ -1,0 +1,19 @@
+{
+  "commit": "1845a52",
+  "date": "2026-08-14",
+  "message": "fix(cli): doctor - usar shell:true en checkCommand para resolver shims .cmd/.ps1 en Windows (pnpm vía corepack)",
+  "signal": "Fix técnico puntual: agrega shell:true a execFile para resolver shims de Windows.",
+  "classification": ["bug_fix", "implementation_pattern"],
+  "importance": 0.3,
+  "candidate": "En Windows, checkCommand necesita execFile(command, args, { shell: true }) para resolver shims .cmd/.ps1 (p. ej. pnpm instalado vía corepack).",
+  "reason": "Señal útil pero de vida corta: esta misma decisión queda corregida poco después por a2dd733 (ver su registro para la relación 'supersedes'). Corrección importante sobre el audit original: este commit NO son '1 archivo, 3 líneas' — son 13 archivos, +3082/-1, porque además del fix real en doctor.ts (3 líneas) arrastra 11 archivos *.tsbuildinfo commiteados por accidente y una regeneración completa de pnpm-lock.yaml. Es un ejemplo todavía más extremo de que la magnitud del diff no revela la señal real: de 3082 líneas insertadas, la señal completa está en 3 de ellas. Un filtro de ruido determinista NO debería descartar este commit solo por 'gran parte del diff es un lockfile' — sigue teniendo código real de producción (doctor.ts) mezclado.",
+  "detectability": "semantic",
+  "magnitude": {
+    "filesChanged": 13,
+    "linesAdded": 3082,
+    "linesRemoved": 1,
+    "note": "incluye 11 *.tsbuildinfo + pnpm-lock.yaml commiteados por accidente; el fix real (doctor.ts) es ~3 líneas"
+  },
+  "surface": ["cli"],
+  "relations": []
+}

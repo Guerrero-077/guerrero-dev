@@ -1,0 +1,14 @@
+{
+  "commit": "a1dc883",
+  "date": "2026-08-14",
+  "message": "chore: ignorar *.tsbuildinfo (artefactos de build incremental, no deben versionarse)",
+  "signal": "Limpieza de repositorio — ignora artefactos de build.",
+  "classification": ["noise"],
+  "importance": 0.05,
+  "candidate": null,
+  "reason": "Cambio de higiene de repositorio, sin impacto en comportamiento ni arquitectura. Trivialmente detectable por regla: prefijo 'chore:' + el diff solo toca .gitignore y archivos *.tsbuildinfo eliminados.",
+  "detectability": "deterministic",
+  "magnitude": { "filesChanged": 12, "note": "1 .gitignore + 11 artefactos borrados" },
+  "surface": ["configuration"],
+  "relations": []
+}

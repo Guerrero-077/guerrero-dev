@@ -1,3 +1,5 @@
+export * from "./CommitSignal.js";
+export * from "./CommitSnapshot.js";
 export * from "./MemoryCandidateScore.js";
 export * from "./MemoryDuplicateMatch.js";
 export * from "./MemoryEvaluation.js";

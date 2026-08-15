@@ -1,0 +1,14 @@
+{
+  "commit": "523be5e",
+  "date": "2026-08-14",
+  "message": "docs: Fase 3 — Foundation (decisiones, estructura, DoD, verificación)",
+  "signal": "Documentación de las decisiones ya tomadas en d3b5804 (Definition of Done, criterios de verificación).",
+  "classification": ["documentation"],
+  "importance": 0.5,
+  "candidate": "Fase 3 (Foundation) quedó documentada: decisiones tomadas, estructura del monorepo, Definition of Done y criterios de verificación usados para cerrarla.",
+  "reason": "No introduce una decisión nueva — documenta y formaliza una ya tomada en d3b5804. El path (docs/) hace trivial detectar que es documentación, pero extraer qué decisiones específicas documenta requiere leer el contenido, no solo el path.",
+  "detectability": "semantic",
+  "magnitude": { "filesChanged": 1, "linesAdded": 198 },
+  "surface": ["documentation"],
+  "relations": [{ "type": "reinforces", "targetCommit": "d3b5804" }]
+}

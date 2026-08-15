@@ -1,0 +1,23 @@
+{
+  "commit": "d3b5804",
+  "date": "2026-08-14",
+  "message": "Fase 3 — Foundation: monorepo TypeScript/Node 24, domain/application/infrastructure por capacidad, Postgres+pgvector, Fastify API, CLI doctor, tests, CI",
+  "signal": "Scaffold inicial del monorepo: estructura por capacidad, elección de stack (Postgres+pgvector, Fastify, CLI propia), CI.",
+  "classification": ["architectural_decision", "configuration_change", "dependency_change"],
+  "importance": 0.9,
+  "candidate": "Guerrero Dev es un monorepo TypeScript organizado por capacidad (domain/application/infrastructure), no por capa técnica, con PostgreSQL+pgvector como store principal y Fastify para la API.",
+  "reason": "Primer commit real del repositorio; establece decisiones estructurales que todos los commits posteriores heredan sin volver a discutirlas. La escala/diversidad de paths tocados (domain+application+infra+API+CI+config) es fácil de detectar por regla, pero el 'por qué' de cada elección (Postgres+pgvector sobre otra opción, Fastify sobre otro framework) no está en el diff — solo en el mensaje y en docs/adr posteriores (ver 2e3240e).",
+  "detectability": "contextual",
+  "magnitude": { "filesChanged": 123, "linesAdded": 2664, "note": "scaffold completo, todo nuevo" },
+  "surface": [
+    "domain",
+    "application",
+    "infrastructure",
+    "api",
+    "database",
+    "ci_cd",
+    "configuration",
+    "dependencies"
+  ],
+  "relations": []
+}

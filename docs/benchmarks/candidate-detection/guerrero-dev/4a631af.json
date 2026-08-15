@@ -1,0 +1,14 @@
+{
+  "commit": "4a631af",
+  "date": "2026-08-14",
+  "message": "Fase 3 — Implementación: vertical slice (Drizzle ORM, AddProject/GetProject/ListProjects, guerrero project add|list, doctor agrupado, server.ts+plugin)",
+  "signal": "Primer vertical slice real: elección de Drizzle ORM, patrón repository+application service aplicado por primera vez.",
+  "classification": ["architectural_decision", "implementation_pattern"],
+  "importance": 0.75,
+  "candidate": "Guerrero Dev usa Drizzle ORM para el acceso a PostgreSQL, con AddProject/GetProject/ListProjects como casos de uso de referencia para el patrón repository + application service.",
+  "reason": "Es la primera vez que las decisiones de d3b5804 se traducen en código funcionando end-to-end (API + CLI + persistencia). Detectar 'esto es un vertical slice' por regla es posible (toca application+infra+api+cli a la vez), pero identificar cuál es el patrón de referencia a memorizar requiere leer el código, no solo contar paths.",
+  "detectability": "contextual",
+  "magnitude": { "filesChanged": 35, "linesAdded": 861, "linesRemoved": 334 },
+  "surface": ["application", "infrastructure", "api", "cli"],
+  "relations": [{ "type": "reinforces", "targetCommit": "d3b5804" }]
+}

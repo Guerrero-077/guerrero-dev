@@ -1,0 +1,14 @@
+{
+  "commit": "93e9cd1",
+  "date": "2026-08-14",
+  "message": "docs: link al repositorio en el README",
+  "signal": "Cambio cosmético de documentación.",
+  "classification": ["noise"],
+  "importance": 0.05,
+  "candidate": null,
+  "reason": "2 líneas, sin impacto en comportamiento ni decisiones. Trivialmente detectable por regla: solo toca README.md, diff mínimo.",
+  "detectability": "deterministic",
+  "magnitude": { "filesChanged": 1, "linesAdded": 2 },
+  "surface": ["documentation"],
+  "relations": []
+}

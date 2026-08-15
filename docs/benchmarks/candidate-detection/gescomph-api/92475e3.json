@@ -1,0 +1,15 @@
+{
+  "commit": "92475e3",
+  "project": "gescomph-api",
+  "date": "2025-11-18",
+  "message": "fix(auth): correct token refresh flow and user relationship loading",
+  "signal": "Corrige el flujo de refresh token (carga de relaciones User->RolUsers->Rol) y agrega un bypass de validación CSRF cuando la petición viene de Swagger UI (detectado por path o header Referer).",
+  "classification": ["bug_fix", "security_change"],
+  "importance": 0.8,
+  "candidate": "El endpoint de refresh token de gescomph-api omite la validación CSRF cuando detecta que la petición viene de Swagger UI (por path /swagger o header Referer) — necesario para poder probar el endpoint desde Swagger, pero el header Referer es controlable por el cliente y no debería usarse como control de seguridad.",
+  "reason": "Ejemplo del caso más delicado del dataset combinado: el mensaje ('correct token refresh flow') no menciona en absoluto que se introdujo un bypass de seguridad — solo aparece leyendo el diff completo. A diferencia de a2dd733 (Dataset A, también 'fix' que revela algo no dicho en el mensaje), acá la naturaleza del hallazgo no es solo informativa sino potencialmente riesgosa: un CSRF bypass basado en Referer es spoofeable. Un CandidateDetector real necesita, como mínimo, marcar esto para revisión humana, no solo memorizarlo como un fix más — la clasificación 'security_change' no estaba en la lista original de tipos de señal propuestos.",
+  "detectability": "contextual",
+  "magnitude": { "filesChanged": 2, "linesChanged": 40 },
+  "surface": ["api", "infrastructure"],
+  "relations": []
+}

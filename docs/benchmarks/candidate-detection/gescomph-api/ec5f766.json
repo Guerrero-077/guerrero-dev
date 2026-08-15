@@ -1,0 +1,15 @@
+{
+  "commit": "ec5f766",
+  "project": "gescomph-api",
+  "date": "2025-11-16",
+  "message": "Initial commit",
+  "signal": "Commit auto-generado por GitHub al crear el repositorio (solo README).",
+  "classification": ["noise"],
+  "importance": 0.02,
+  "candidate": null,
+  "reason": "2 líneas en README.md, sin código. Trivialmente detectable por regla — probablemente el caso más fácil de todo el dataset: mensaje literal 'Initial commit' + un solo archivo README.",
+  "detectability": "deterministic",
+  "magnitude": { "filesChanged": 1, "linesAdded": 2 },
+  "surface": ["documentation"],
+  "relations": []
+}

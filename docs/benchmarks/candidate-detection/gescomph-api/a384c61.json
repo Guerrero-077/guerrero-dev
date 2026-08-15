@@ -1,0 +1,15 @@
+{
+  "commit": "a384c61",
+  "project": "gescomph-api",
+  "date": "2025-11-24",
+  "message": "feat(obligations): implement real-time notification for obligation updates and refactor obligation handling",
+  "signal": "Agrega notificación en tiempo real (SignalR) para actualizaciones de obligaciones, vía una interfaz IObligationNotifier con implementación SignalRObligationNotifier.",
+  "classification": ["architectural_decision", "implementation_pattern"],
+  "importance": 0.7,
+  "candidate": "Las actualizaciones de ObligationMonth se notifican en tiempo real vía SignalR, detrás de la interfaz IObligationNotifier (SignalRObligationNotifier como implementación) — mismo patrón interface+implementación usado para MercadoPago en a7942f0.",
+  "reason": "Confirma un patrón que ya apareció en a7942f0: nueva capacidad de infraestructura siempre entra detrás de una interfaz propia, nunca acoplando el dominio directamente a la librería externa (SignalR). Es la clase de patrón arquitectónico reutilizable que valdría la pena que el agente aprenda y sugiera cuando vea una integración nueva sin esa interfaz de por medio.",
+  "detectability": "contextual",
+  "magnitude": { "filesChanged": 8, "linesChanged": 313 },
+  "surface": ["application", "infrastructure"],
+  "relations": [{ "type": "reinforces", "targetCommit": "a7942f0" }]
+}

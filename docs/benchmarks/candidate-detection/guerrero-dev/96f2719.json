@@ -1,0 +1,14 @@
+{
+  "commit": "96f2719",
+  "date": "2026-08-14",
+  "message": "feat(domain): Fase 4.2 - modelo de dominio del Memory Engine",
+  "signal": "Introduce el modelo de dominio real del Memory Engine y retira explícitamente el placeholder de Fase 3 (MemoryRecord/IMemoryStore/MemoryService) introducido en d3b5804.",
+  "classification": ["domain_decision", "architectural_decision"],
+  "importance": 0.85,
+  "candidate": "El modelo de dominio del Memory Engine (Memory/MemoryCandidate/MemorySource/MemoryRelation/MemoryEmbedding + invariantes de confidence/importance/scope) reemplazó el placeholder de Fase 3 (MemoryRecord/MemoryKind, IMemoryStore/MemoryService).",
+  "reason": "El mensaje del commit lo dice explícitamente ('Retira el placeholder de Fase 3... que quedaba obsoleto'), pero confirmar exactamente qué archivos se borraron (MemoryRecord.ts, IMemoryStore.ts, MemoryService.ts, packages/memory completo) y con qué se reemplazaron requirió revisar el diff completo, no solo el mensaje — el mensaje no lista los archivos retirados.",
+  "detectability": "contextual",
+  "magnitude": { "filesChanged": 16, "linesAdded": 250, "linesRemoved": 58 },
+  "surface": ["domain", "application"],
+  "relations": [{ "type": "supersedes", "targetCommit": "d3b5804" }]
+}

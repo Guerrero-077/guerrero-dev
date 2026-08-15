@@ -1,0 +1,14 @@
+{
+  "commit": "bf7f9fb",
+  "date": "2026-08-15",
+  "message": "feat(infrastructure): Fase 4.3 - persistencia del Memory Engine",
+  "signal": "Persistencia real del Memory Engine: schema PostgreSQL con CHECK constraints como defensa en profundidad, FKs ON DELETE CASCADE, índices sobre columnas de filtro reales, repositorios Drizzle.",
+  "classification": ["database_change", "architectural_decision"],
+  "importance": 0.9,
+  "candidate": "El Memory Engine persiste memories/memory_sources/memory_relations vía Drizzle+PostgreSQL con CHECK constraints como defensa en profundidad (confidence/importance 0..1, scope/type/status válidos, consistencia scope<->project_id, sin auto-relaciones), FKs ON DELETE CASCADE, e índices sobre project_id/status/type/scope.",
+  "reason": "Cambios de schema y constraints son estructuralmente detectables (archivos bajo database/migrations/, database/schema/), pero decidir CUÁLES constraints son arquitectónicamente significativas (p. ej. 'sin auto-relaciones' vs. un índice cualquiera) requiere contexto del dominio, no solo el SQL.",
+  "detectability": "contextual",
+  "magnitude": { "filesChanged": 21, "linesAdded": 736 },
+  "surface": ["infrastructure", "database"],
+  "relations": [{ "type": "reinforces", "targetCommit": "96f2719" }]
+}

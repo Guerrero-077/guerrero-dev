@@ -1,0 +1,15 @@
+{
+  "commit": "bb705ac",
+  "project": "gescomph-api",
+  "date": "2025-11-27",
+  "message": "test(controllers): refactor unit tests with clearer naming, updated assertions and improved structure",
+  "signal": "Refactor masivo de tests unitarios: renombra archivos (p. ej. RolTest/ -> Business/RolServiceTests.cs), mejora nombres de test y assertions, sin tocar código de producción.",
+  "classification": ["testing"],
+  "importance": 0.25,
+  "candidate": "Los tests de gescomph-api siguen la convención Modulo/{Business,Data,Web}/<Entidad>ServiceTests.cs / <Entidad>RepositoryTests.cs / <Entidad>ControllerTests.cs — reorganizados desde una estructura previa menos consistente (p. ej. RolTest/).",
+  "reason": "Primer ejemplo de 'testing' puro en el dataset combinado — 64 archivos y ~2300 líneas cambiadas, pero CERO código de producción tocado. Es el ejemplo más claro de por qué 'magnitud' es una mala proxy de importancia arquitectónica: por líneas cambiadas sería el segundo commit más grande de todo gescomph-api, pero no revela ninguna decisión nueva sobre el sistema, solo estandariza cómo se organizan los tests. Fácilmente descartable por regla si se detecta '100% del diff está bajo */Test/ o */Tests/'.",
+  "detectability": "deterministic",
+  "magnitude": { "filesChanged": 64, "linesChanged": 2288 },
+  "surface": ["testing"],
+  "relations": []
+}

@@ -1,0 +1,15 @@
+{
+  "commit": "60c34f2",
+  "project": "gescomph-api",
+  "date": "2025-11-26",
+  "message": "feat(CollectionSetting): Adds entity setting `CollectionSetting`",
+  "signal": "Agrega una clase de configuración EF para la entidad CollectionSetting.",
+  "classification": ["database_change"],
+  "importance": 0.1,
+  "candidate": null,
+  "reason": "Mismo patrón que af3fe10: una Configuration class EF de rutina, sin decisión de diseño nueva. Se incluye a propósito como par de af3fe10 — dos ejemplos del mismo tipo de commit mecánico repetido en momentos distintos del historial, útil para confirmar que la regla determinista/semántica que los descarte sea consistente y no dependa de en qué parte del historial aparecen.",
+  "detectability": "semantic",
+  "magnitude": { "filesChanged": 1, "linesAdded": 22 },
+  "surface": ["infrastructure", "database"],
+  "relations": [{ "type": "reinforces", "targetCommit": "232a59d" }]
+}

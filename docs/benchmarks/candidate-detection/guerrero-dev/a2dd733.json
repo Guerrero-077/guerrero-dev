@@ -1,0 +1,14 @@
+{
+  "commit": "a2dd733",
+  "date": "2026-08-14",
+  "message": "fix(cli): doctor - usar exec en vez de execFile+shell:true (evita DEP0190)",
+  "signal": "Corrige la decisión tomada en 1845a52: reemplaza execFile+shell:true por exec, evitando el warning de deprecación DEP0190 de Node.",
+  "classification": ["bug_fix", "implementation_pattern"],
+  "importance": 0.7,
+  "candidate": "En Windows, usar exec() con args concatenados (siempre literales fijos del propio código, nunca input externo) en vez de execFile(command, args, { shell: true }) para resolver shims .cmd/.ps1 — execFile+shell:true dispara el warning de deprecación DEP0190 de Node.",
+  "reason": "Este es el caso 'update stuff' que motivó revisar el diseño: el mensaje del commit ('usar exec en vez de execFile') no menciona DEP0190 en absoluto — la razón real solo está en el comentario del diff. Un detector que solo lea el mensaje se pierde por completo el motivo de la corrección. Además, superseder una decisión de 8 minutos antes en 8 líneas cambiadas demuestra que magnitud no correlaciona con importancia.",
+  "detectability": "semantic",
+  "magnitude": { "filesChanged": 1, "linesAdded": 8, "linesRemoved": 5 },
+  "surface": ["cli"],
+  "relations": [{ "type": "supersedes", "targetCommit": "1845a52" }]
+}

@@ -1,0 +1,15 @@
+{
+  "commit": "a7942f0",
+  "project": "gescomph-api",
+  "date": "2025-11-21",
+  "message": "feat(payment): payment gateway implementation",
+  "signal": "Integra MercadoPago como pasarela de pagos: servicio, controller, DTOs de preferencia/webhook, configuración y extensión de DI.",
+  "classification": ["architectural_decision", "dependency_change"],
+  "importance": 0.85,
+  "candidate": "gescomph-api integra MercadoPago como pasarela de pagos (IMercadoPagoService/MercadoPagoService), con endpoint de webhook propio y configuración vía MercadoPagoSettings — primera dependencia externa de pagos del sistema.",
+  "reason": "Introduce una dependencia de terceros con superficie de seguridad propia (webhook público, secret de validación) y un patrón (interface + implementación + DI extension) que se repite luego en a384c61 (SignalRObligationNotifier) y af3fe10. Detectar 'se agregó una integración de pago' por regla es difícil sin contexto — requiere reconocer el patrón IXxxService/XxxService + Settings + webhook, no solo contar archivos nuevos.",
+  "detectability": "contextual",
+  "magnitude": { "filesChanged": 10, "linesAdded": 463 },
+  "surface": ["application", "infrastructure", "api", "configuration", "dependencies"],
+  "relations": []
+}

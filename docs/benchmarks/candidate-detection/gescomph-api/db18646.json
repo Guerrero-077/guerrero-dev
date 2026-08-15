@@ -1,0 +1,15 @@
+{
+  "commit": "db18646",
+  "project": "gescomph-api",
+  "date": "2025-11-16",
+  "message": "refactor(obligation-month): replace status string with enum and update related usages",
+  "signal": "Reemplaza un campo de estado modelado como string por un enum tipado en ObligationMonth.",
+  "classification": ["refactor", "domain_decision"],
+  "importance": 0.55,
+  "candidate": "El estado de ObligationMonth pasó de representarse como string a un enum tipado, actualizando servicio/repositorio/seeder en consecuencia.",
+  "reason": "Primer ejemplo real de 'refactor' puro en el dataset combinado (no aparecía en guerrero-dev). Es un patrón de diseño reutilizable ('preferir enums a strings para estados de dominio') que vale la pena recordar, aunque el commit en sí sea acotado (4 archivos). El mensaje describe bien el qué, pero no dice si hubo un problema real (bugs por comparar strings mal escritos) que motivó el cambio — eso solo se infiere del diff.",
+  "detectability": "semantic",
+  "magnitude": { "filesChanged": 4, "linesChanged": 41 },
+  "surface": ["domain", "application", "infrastructure"],
+  "relations": []
+}

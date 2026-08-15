@@ -1,0 +1,15 @@
+{
+  "commit": "5d6b4a7",
+  "project": "gescomph-api",
+  "date": "2025-11-16",
+  "message": "fix(establishments): image loading correction and query adjustments in projections",
+  "signal": "Corrige carga de imágenes y proyecciones en el repositorio/servicio de Establishments.",
+  "classification": ["bug_fix"],
+  "importance": 0.35,
+  "candidate": "El repositorio de Establishments tenía un bug en la carga de imágenes y en las proyecciones de consulta — corregido ajustando IEstablishmentsRepository/EstablishmentsRepository y el mapping de ImageSelectDto.",
+  "reason": "Fix acotado a un módulo (8 archivos, ~50 líneas), sin patrón reutilizable evidente más allá del propio bug. A diferencia de a2dd733 en Dataset A, no hay evidencia de que esto corrija una decisión anterior explícita — es un fix normal, no un supersedes.",
+  "detectability": "semantic",
+  "magnitude": { "filesChanged": 8, "linesChanged": 50 },
+  "surface": ["application", "infrastructure"],
+  "relations": []
+}

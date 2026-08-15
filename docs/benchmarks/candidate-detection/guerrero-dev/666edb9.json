@@ -1,0 +1,14 @@
+{
+  "commit": "666edb9",
+  "date": "2026-08-14",
+  "message": "docs: Fase 4.1 - diseño completo del Memory Engine",
+  "signal": "Documento de diseño completo (420 líneas): modelo conceptual, tipos de memoria, scope, lifecycle, confianza+evidencia, schema PostgreSQL propuesto, contratos, hybrid retrieval, orden de implementación.",
+  "classification": ["architectural_decision", "documentation", "domain_decision"],
+  "importance": 0.85,
+  "candidate": "El Memory Engine define 6 tipos de memoria, scope global/project/session, lifecycle candidate->active->superseded|invalidated->archived, y un modelo de confianza+evidencia+jerarquía de fuentes.",
+  "reason": "Caso límite deliberadamente incluido: un solo commit de 420 líneas de documentación contiene, en principio, decenas de candidatas potenciales (una por cada decisión de diseño), no una sola. El 'candidate' de este registro es solo un resumen — un CandidateDetector real probablemente necesita descomponer un commit así en múltiples candidatas, no producir una única memoria genérica. Esto no estaba contemplado en el diseño original de 4.8 y vale la pena resolverlo antes de fijar contratos.",
+  "detectability": "semantic",
+  "magnitude": { "filesChanged": 1, "linesAdded": 420 },
+  "surface": ["documentation"],
+  "relations": []
+}

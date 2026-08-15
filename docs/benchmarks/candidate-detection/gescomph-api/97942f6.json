@@ -1,0 +1,15 @@
+{
+  "commit": "97942f6",
+  "project": "gescomph-api",
+  "date": "2025-12-02",
+  "message": "fix(config): actualizar SuccessUrl, NotificationUrl y orígenes permitidos",
+  "signal": "Actualiza URLs de retorno/webhook de MercadoPago y orígenes CORS permitidos, moviendo de túneles ngrok temporales a URLs de despliegue reales (Firebase Hosting para el portal, Azure Container Apps para la API).",
+  "classification": ["configuration_change"],
+  "importance": 0.4,
+  "candidate": "gescomph-api está desplegado en Azure Container Apps y gescomph-portal en Firebase Hosting (entorno dev) — las URLs de MercadoPago (SuccessUrl/NotificationUrl) y CORS ya no apuntan a túneles ngrok de desarrollo local.",
+  "reason": "El valor real de este commit no es el diff en sí (son solo URLs), sino lo que revela sobre infraestructura de despliegue que no está documentada en ningún otro lado del repo: dónde vive cada servicio en producción/dev. Es exactamente el tipo de señal 'configuration_change' que parece trivial por regla (solo toca appsettings.json) pero cuyo contenido merece extraerse semánticamente — deploy target no es lo mismo que un timeout cualquiera.",
+  "detectability": "semantic",
+  "magnitude": { "filesChanged": 1, "linesChanged": 6 },
+  "surface": ["configuration"],
+  "relations": []
+}
