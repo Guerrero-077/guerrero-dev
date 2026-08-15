@@ -1,3 +1,4 @@
+export * from "./Embedding.js";
 export * from "./Memory.js";
 export * from "./MemoryCandidate.js";
 export * from "./MemoryEmbedding.js";
