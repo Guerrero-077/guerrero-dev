@@ -1,3 +1,7 @@
+export * from "./MemoryCandidateScore.js";
+export * from "./MemoryDuplicateMatch.js";
+export * from "./MemoryEvaluation.js";
+export * from "./MemoryPromotionResult.js";
 export * from "./MemoryRankingContext.js";
 export * from "./MemoryRankingWeights.js";
 export * from "./MemorySearchCandidate.js";
