@@ -1,5 +1,7 @@
 # Guerrero Dev
 
+Repo: [github.com/Guerrero-077/guerrero-dev](https://github.com/Guerrero-077/guerrero-dev)
+
 Orquestador de agentes, herramientas y conocimiento de código. Decisiones de arquitectura: [`docs/fase-2-seleccion-tecnologica.md`](./docs/fase-2-seleccion-tecnologica.md), [`docs/fase-3-foundation.md`](./docs/fase-3-foundation.md) y [`docs/fase-3-implementacion.md`](./docs/fase-3-implementacion.md).
 
 Este repositorio implementa un **vertical slice mínimo**: CLI y API funcionando de punta a punta contra PostgreSQL (crear/listar proyectos), demostrando que la arquitectura por capas funciona. Todavía no modifica código, no aprende, no tiene memoria semántica y no conecta Cline/OpenCode — eso es Fase 4 en adelante.
