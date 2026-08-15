@@ -1,3 +1,4 @@
+export * from "./CommitReference.js";
 export * from "./CommitSignal.js";
 export * from "./CommitSnapshot.js";
 export * from "./MemoryCandidateScore.js";

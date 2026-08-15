@@ -10,5 +10,6 @@
 export * from "./configuration/index.js";
 export * from "./database/index.js";
 export * from "./embeddings/index.js";
+export * from "./git/index.js";
 export * from "./llm/index.js";
 export * from "./logging/index.js";

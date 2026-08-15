@@ -1,5 +1,6 @@
 export * from "./ICommitAnalyzer.js";
 export * from "./ICommitNoiseFilter.js";
+export * from "./IGitHistorySource.js";
 export * from "./IMemoryCandidateDeduplicator.js";
 export * from "./IMemoryCandidateEvaluator.js";
 export * from "./IMemoryCandidatePromoter.js";
