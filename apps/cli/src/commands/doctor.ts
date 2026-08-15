@@ -39,7 +39,10 @@ function checkNode(): CheckResult {
 
 async function checkCommand(label: string, command: string, args: string[]): Promise<CheckResult> {
   try {
-    await execFileAsync(command, args);
+    // shell: true es necesario en Windows para resolver shims .cmd/.ps1
+    // (p. ej. pnpm instalado vía corepack) — execFile sin shell solo
+    // encuentra ejecutables .exe reales en PATH.
+    await execFileAsync(command, args, { shell: true });
     return { label, status: "ok" };
   } catch {
     return { label, status: "fail", detail: `no se encontró \`${command}\` en PATH` };
