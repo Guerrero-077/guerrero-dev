@@ -1,3 +1,5 @@
+export * from "./CandidateDetectionService.js";
+export * from "./DeterministicCandidateExtractor.js";
 export * from "./DeterministicCommitAnalyzer.js";
 export * from "./DeterministicCommitNoiseFilter.js";
 export * from "./MemoryCandidateEvaluator.js";

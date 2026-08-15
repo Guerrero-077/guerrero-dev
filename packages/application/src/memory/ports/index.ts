@@ -1,3 +1,4 @@
+export * from "./ICandidateExtractor.js";
 export * from "./ICommitAnalyzer.js";
 export * from "./ICommitNoiseFilter.js";
 export * from "./IGitHistorySource.js";

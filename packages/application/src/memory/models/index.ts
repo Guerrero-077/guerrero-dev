@@ -1,3 +1,4 @@
+export * from "./CandidateExtractionResult.js";
 export * from "./CommitReference.js";
 export * from "./CommitSignal.js";
 export * from "./CommitSnapshot.js";
@@ -11,3 +12,4 @@ export * from "./MemorySearchCandidate.js";
 export * from "./MemorySearchQuery.js";
 export * from "./MemorySearchResult.js";
 export * from "./MemorySemanticQuery.js";
+export * from "./RiskSignal.js";
