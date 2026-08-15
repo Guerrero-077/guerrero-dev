@@ -1,6 +1,7 @@
 export * from "./IEmbeddingProvider.js";
 export * from "./IExecutionEngine.js";
 export * from "./ILLMProvider.js";
+export * from "./IMemoryEmbeddingRepository.js";
 export * from "./IMemoryRelationRepository.js";
 export * from "./IMemoryRepository.js";
 export * from "./IMemorySourceRepository.js";

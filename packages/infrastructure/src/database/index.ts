@@ -1,6 +1,7 @@
 export * from "./client.js";
 export * from "./migrate.js";
 export * from "./pool.js";
+export * from "./repositories/DrizzleMemoryEmbeddingRepository.js";
 export * from "./repositories/DrizzleMemoryRelationRepository.js";
 export * from "./repositories/DrizzleMemoryRepository.js";
 export * from "./repositories/DrizzleMemorySourceRepository.js";
