@@ -1,0 +1,30 @@
+{
+  "name": "@guerrero-dev/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "guerrero": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc -b --noEmit",
+    "clean": "rimraf dist tsconfig.tsbuildinfo"
+  },
+  "dependencies": {
+    "@guerrero-dev/application": "workspace:*",
+    "@guerrero-dev/domain": "workspace:*",
+    "@guerrero-dev/infrastructure": "workspace:*",
+    "@guerrero-dev/shared": "workspace:*",
+    "commander": "^12.1.0",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "tsx": "^4.19.2",
+    "rimraf": "^6.0.1",
+    "@types/pg": "^8.11.10"
+  }
+}

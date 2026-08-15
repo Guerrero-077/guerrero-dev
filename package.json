@@ -1,0 +1,43 @@
+{
+  "name": "guerrero-dev",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Guerrero Dev — orquestador de agentes, herramientas y conocimiento de código.",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "dev": "pnpm -r --parallel run dev",
+    "typecheck": "pnpm -r run typecheck && tsc --noEmit -p tests/tsconfig.json",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "cross-env RUN_INTEGRATION_TESTS=true vitest run tests/integration",
+    "test:e2e": "cross-env RUN_INTEGRATION_TESTS=true vitest run tests/e2e",
+    "migrate": "tsx scripts/migrate.ts",
+    "clean": "pnpm -r run clean && rimraf node_modules"
+  },
+  "devDependencies": {
+    "@guerrero-dev/api": "workspace:*",
+    "@guerrero-dev/application": "workspace:*",
+    "@guerrero-dev/domain": "workspace:*",
+    "@guerrero-dev/infrastructure": "workspace:*",
+    "@types/node": "^22.10.0",
+    "cross-env": "^7.0.3",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "fastify": "^5.2.0",
+    "prettier": "^3.4.2",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1",
+    "vitest": "^2.1.8"
+  }
+}

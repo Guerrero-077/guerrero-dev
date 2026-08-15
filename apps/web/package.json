@@ -1,0 +1,18 @@
+{
+  "name": "@guerrero-dev/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo \"web: frontend framework TBD (Fase 3 placeholder)\"",
+    "dev": "echo \"web: frontend framework TBD (Fase 3 placeholder)\"",
+    "typecheck": "echo \"web: nothing to typecheck yet\"",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@guerrero-dev/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1"
+  }
+}

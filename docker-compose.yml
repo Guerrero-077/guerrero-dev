@@ -1,0 +1,26 @@
+name: guerrero-dev
+
+# Fase 3.10: solo PostgreSQL. Ollama corre nativamente en el host (así
+# aprovecha la GPU directamente y puede administrarse — o cambiarse por un
+# proveedor cloud — sin tocar esta infraestructura).
+services:
+  postgres:
+    build: ./docker/postgres
+    container_name: guerrero-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: guerrero
+      POSTGRES_PASSWORD: guerrero
+      POSTGRES_DB: guerrero_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - guerrero_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U guerrero -d guerrero_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  guerrero_postgres_data:

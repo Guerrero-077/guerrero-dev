@@ -1,0 +1,7 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  # apps/web quedó fuera del alcance de Fase 3 (ver docs/fase-3-foundation.md).
+  # El directorio placeholder de la primera pasada no se pudo eliminar por
+  # restricciones del entorno de este agente; queda excluido del workspace.
+  - "!apps/web"

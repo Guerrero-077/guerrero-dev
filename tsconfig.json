@@ -1,0 +1,16 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/shared" },
+    { "path": "packages/domain" },
+    { "path": "packages/application" },
+    { "path": "packages/infrastructure" },
+    { "path": "packages/memory" },
+    { "path": "packages/project-intelligence" },
+    { "path": "packages/agent-core" },
+    { "path": "packages/execution" },
+    { "path": "packages/mcp" },
+    { "path": "apps/api" },
+    { "path": "apps/cli" }
+  ]
+}
