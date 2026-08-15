@@ -6,4 +6,5 @@ export * from "./repositories/DrizzleMemoryRelationRepository.js";
 export * from "./repositories/DrizzleMemoryRepository.js";
 export * from "./repositories/DrizzleMemorySourceRepository.js";
 export * from "./repositories/DrizzleProjectRepository.js";
+export * from "./retrieval/index.js";
 export * as schema from "./schema/index.js";
