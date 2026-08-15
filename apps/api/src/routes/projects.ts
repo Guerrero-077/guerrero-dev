@@ -1,19 +1,25 @@
 import type { FastifyInstance } from "fastify";
-import type { ProjectService } from "@guerrero-dev/application";
+import type { AddProject, GetProject, ListProjects } from "@guerrero-dev/application";
 
 interface CreateProjectBody {
   name?: string;
-  rootPath?: string;
+  path?: string;
 }
 
-export function registerProjectRoutes(app: FastifyInstance, projectService: ProjectService): void {
+export interface ProjectUseCases {
+  addProject: AddProject;
+  getProject: GetProject;
+  listProjects: ListProjects;
+}
+
+export function registerProjectRoutes(app: FastifyInstance, useCases: ProjectUseCases): void {
   app.get("/api/v1/projects", async () => {
-    const projects = await projectService.listProjects();
+    const projects = await useCases.listProjects.execute();
     return { projects };
   });
 
   app.get<{ Params: { id: string } }>("/api/v1/projects/:id", async (request, reply) => {
-    const project = await projectService.getProject(request.params.id);
+    const project = await useCases.getProject.execute(request.params.id);
     if (!project) {
       reply.code(404);
       return { error: "Proyecto no encontrado" };
@@ -22,14 +28,19 @@ export function registerProjectRoutes(app: FastifyInstance, projectService: Proj
   });
 
   app.post<{ Body: CreateProjectBody }>("/api/v1/projects", async (request, reply) => {
-    const { name, rootPath } = request.body ?? {};
-    if (!name || !rootPath) {
+    const { name, path } = request.body ?? {};
+    if (!name || !path) {
       reply.code(400);
-      return { error: "name y rootPath son requeridos" };
+      return { error: "name y path son requeridos" };
     }
 
-    const project = await projectService.createProject({ name, rootPath });
+    const result = await useCases.addProject.execute({ name, path });
+    if (!result.ok) {
+      reply.code(400);
+      return { error: result.error.message };
+    }
+
     reply.code(201);
-    return { project };
+    return { project: result.value };
   });
 }

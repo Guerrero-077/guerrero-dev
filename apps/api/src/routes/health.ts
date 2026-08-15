@@ -1,14 +1,13 @@
 import type { FastifyInstance } from "fastify";
-import type { PgPool } from "@guerrero-dev/infrastructure";
 
 /**
  * Health checks (Fase 3.14).
  *
  * - `/health`: el proceso está corriendo. No toca dependencias.
- * - `/health/ready`: el proceso + PostgreSQL (y en el futuro, otras
- *   dependencias requeridas) están disponibles.
+ * - `/health/ready`: el proceso + PostgreSQL están disponibles (vía
+ *   `fastify.pgPool`, decorado por `plugins/database.ts`).
  */
-export function registerHealthRoutes(app: FastifyInstance, pool: PgPool): void {
+export function registerHealthRoutes(app: FastifyInstance): void {
   app.get("/health", async () => ({ status: "ok" }));
   app.get("/api/v1/health", async () => ({ status: "ok" }));
 
@@ -16,7 +15,7 @@ export function registerHealthRoutes(app: FastifyInstance, pool: PgPool): void {
     const checks: Record<string, boolean> = {};
 
     try {
-      await pool.query("SELECT 1");
+      await app.pgPool.query("SELECT 1");
       checks["database"] = true;
     } catch {
       checks["database"] = false;

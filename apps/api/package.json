@@ -9,9 +9,9 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./app": {
-      "types": "./dist/app.d.ts",
-      "default": "./dist/app.js"
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
     }
   },
   "scripts": {
@@ -26,7 +26,8 @@
     "@guerrero-dev/domain": "workspace:*",
     "@guerrero-dev/infrastructure": "workspace:*",
     "@guerrero-dev/shared": "workspace:*",
-    "fastify": "^5.2.0"
+    "fastify": "^5.2.0",
+    "fastify-plugin": "^5.0.1"
   },
   "devDependencies": {
     "typescript": "^5.7.2",

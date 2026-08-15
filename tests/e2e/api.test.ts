@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createPostgresPool, loadConfig, runMigrations, type PgPool } from "@guerrero-dev/infrastructure";
-import { buildApp } from "@guerrero-dev/api/app";
+import { buildServer } from "@guerrero-dev/api/server";
 
 /**
- * Test e2e (Fase 3.17): API + PostgreSQL real, sin abrir un puerto TCP
+ * Test e2e (Fase 3.15): API + PostgreSQL real, sin abrir un puerto TCP
  * (usa `app.inject()`). Igual que los tests de integración, se salta sin
  * RUN_INTEGRATION_TESTS=true.
  */
@@ -18,7 +18,7 @@ describe.skipIf(!RUN)("API (e2e)", () => {
     const config = loadConfig();
     pool = createPostgresPool(config);
     await runMigrations(pool);
-    app = buildApp({ pool });
+    app = await buildServer({ pool });
     await app.ready();
   });
 
@@ -40,21 +40,21 @@ describe.skipIf(!RUN)("API (e2e)", () => {
   });
 
   it("POST /api/v1/projects crea y GET /api/v1/projects lo lista", async () => {
-    const rootPath = `/tmp/e2e-${Date.now()}`;
+    const path = `/tmp/e2e-${Date.now()}`;
     const create = await app.inject({
       method: "POST",
       url: "/api/v1/projects",
-      payload: { name: "e2e-project", rootPath },
+      payload: { name: "e2e-project", path },
     });
     expect(create.statusCode).toBe(201);
-    expect(create.json().project.rootPath).toBe(rootPath);
+    expect(create.json().project.path).toBe(path);
 
     const list = await app.inject({ method: "GET", url: "/api/v1/projects" });
     expect(list.statusCode).toBe(200);
-    expect(list.json().projects.some((p: { rootPath: string }) => p.rootPath === rootPath)).toBe(true);
+    expect(list.json().projects.some((p: { path: string }) => p.path === path)).toBe(true);
   });
 
-  it("POST /api/v1/projects sin rootPath devuelve 400", async () => {
+  it("POST /api/v1/projects sin path devuelve 400", async () => {
     const res = await app.inject({ method: "POST", url: "/api/v1/projects", payload: { name: "sin-path" } });
     expect(res.statusCode).toBe(400);
   });

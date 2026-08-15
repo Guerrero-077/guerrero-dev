@@ -1,19 +1,15 @@
 import type { Project } from "@guerrero-dev/domain";
 
-export interface CreateProjectInput {
-  name: string;
-  rootPath: string;
-}
-
 /**
- * Contrato de persistencia de proyectos. `PostgresProjectRepository`
- * (`infrastructure/database`) es la implementación real, sobre la tabla
- * `projects` creada en la migración 0001.
+ * Contrato de persistencia de proyectos. `DrizzleProjectRepository`
+ * (`infrastructure/database/repositories`) es la implementación real.
+ * La entidad `Project` ya viene completa (id/timestamps incluidos) —
+ * quien la construye es el caso de uso (`AddProject`), no el repositorio.
  */
 export interface IProjectRepository {
-  findAll(): Promise<Project[]>;
+  create(project: Project): Promise<Project>;
 
   findById(id: string): Promise<Project | null>;
 
-  create(input: CreateProjectInput): Promise<Project>;
+  findAll(): Promise<Project[]>;
 }

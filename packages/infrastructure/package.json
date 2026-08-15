@@ -21,6 +21,7 @@
     "@guerrero-dev/application": "workspace:*",
     "@guerrero-dev/domain": "workspace:*",
     "@guerrero-dev/shared": "workspace:*",
+    "drizzle-orm": "^0.38.4",
     "pg": "^8.13.1",
     "pino": "^9.6.0",
     "zod": "^3.24.1"

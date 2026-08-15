@@ -1,5 +1,5 @@
 import { createLogger, createPostgresPool, loadConfig, runMigrations } from "@guerrero-dev/infrastructure";
-import { buildApp } from "./app.js";
+import { buildServer } from "./server.js";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -15,7 +15,7 @@ async function main(): Promise<void> {
     );
   }
 
-  const app = buildApp({ pool });
+  const app = await buildServer({ pool });
 
   await app.listen({ port: config.API_PORT, host: config.API_HOST });
   logger.info({ port: config.API_PORT, host: config.API_HOST }, "Guerrero Dev API escuchando");

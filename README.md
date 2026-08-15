@@ -1,25 +1,25 @@
 # Guerrero Dev
 
-Orquestador de agentes, herramientas y conocimiento de código. Decisiones de arquitectura: [`docs/fase-2-seleccion-tecnologica.md`](./docs/fase-2-seleccion-tecnologica.md) y [`docs/fase-3-foundation.md`](./docs/fase-3-foundation.md).
+Orquestador de agentes, herramientas y conocimiento de código. Decisiones de arquitectura: [`docs/fase-2-seleccion-tecnologica.md`](./docs/fase-2-seleccion-tecnologica.md), [`docs/fase-3-foundation.md`](./docs/fase-3-foundation.md) y [`docs/fase-3-implementacion.md`](./docs/fase-3-implementacion.md).
 
-Este repositorio es el resultado de **Fase 3 — Foundation**: el esqueleto ejecutable del monorepo (arranca, tiene configuración, logging, health checks, dominio, contratos, PostgreSQL, Docker, tests y CI) sobre el que se construyen las fases siguientes. Todavía no modifica código, no aprende, no tiene memoria semántica y no conecta Cline/OpenCode — eso es Fase 4 en adelante.
+Este repositorio implementa un **vertical slice mínimo**: CLI y API funcionando de punta a punta contra PostgreSQL (crear/listar proyectos), demostrando que la arquitectura por capas funciona. Todavía no modifica código, no aprende, no tiene memoria semántica y no conecta Cline/OpenCode — eso es Fase 4 en adelante.
 
 ## Stack
 
-TypeScript · Node.js 24 LTS · pnpm workspaces · Fastify · PostgreSQL + pgvector · MCP (Fase 7) · Cline SDK / OpenCode SDK (Fase 7) · Ollama.
+TypeScript · Node.js 24 LTS · pnpm workspaces · Fastify · PostgreSQL + pgvector · Drizzle ORM · MCP (Fase 7) · Cline SDK / OpenCode SDK (Fase 7) · Ollama.
 
 ## Estructura
 
 ```text
 apps/
-  api/   — Fastify: health checks, /api/v1/projects (real, sobre Postgres), /api/v1/sessions (placeholder)
-  cli/   — comando `guerrero doctor`
+  api/   — Fastify: server.ts + plugins/database.ts + routes/
+  cli/   — comandos `guerrero doctor` y `guerrero project add|list`
 
 packages/
   shared/                 — ILogger (interfaz) + errores puros, sin dependencias externas
-  domain/                 — entidades por capacidad: agent/, project/, memory/, execution/, permissions/, shared/
-  application/            — casos de uso (agent/, projects/, memory/, analysis/) + puertos en common/ports/
-  infrastructure/         — implementaciones concretas: database/ (Postgres), llm/ (Ollama), configuration/, logging/, git/, filesystem/, execution/ (placeholders)
+  domain/                 — por capacidad: agent/, project/, memory/, execution/, permissions/, shared/ (Entity, Result, HardwareProfile, Model)
+  application/            — casos de uso individuales (projects/AddProject.ts, GetProject.ts, ListProjects.ts, ...) + puertos en common/ports/
+  infrastructure/         — database/ (Drizzle + Postgres), llm/ (Ollama), configuration/, logging/, git/, filesystem/, execution/ (placeholders)
   agent-core/             — AgentOrchestrator, ContextBuilder, Planner, ToolSelector, PolicyEvaluator, AgentLoop (skeletons; PolicyEvaluator es funcional)
   execution/               — implementaciones de IExecutionEngine (NoopExecutionEngine hoy; Cline/OpenCode en Fase 7)
   memory/                  — sistema de memoria (Fase 4)
@@ -36,7 +36,7 @@ Principio arquitectónico: las dependencias externas apuntan hacia `infrastructu
 - Node.js 24 LTS (ver `.nvmrc`)
 - pnpm 9+ (`corepack enable`)
 - Docker (para PostgreSQL + pgvector vía `docker-compose.yml`)
-- Ollama corriendo en el host (para LLM local — no está en Docker Compose a propósito, ver `docs/fase-3-foundation.md`)
+- Ollama corriendo en el host (opcional — no bloquea `guerrero doctor`)
 
 ## Empezar
 
@@ -47,7 +47,24 @@ docker compose up -d postgres
 pnpm build
 pnpm typecheck
 pnpm test
-pnpm --filter @guerrero-dev/cli exec node dist/index.js doctor
+node apps/cli/dist/index.js doctor
+```
+
+## Probar el vertical slice
+
+```bash
+node apps/cli/dist/index.js project add GESCOMPH D:\Projects\GESCOMPH
+node apps/cli/dist/index.js project list
+```
+
+O vía la API (`node apps/api/dist/index.js`, en otra terminal):
+
+```bash
+curl -X POST http://localhost:3000/api/v1/projects \
+  -H "content-type: application/json" \
+  -d '{"name":"GESCOMPH","path":"D:/Projects/GESCOMPH"}'
+
+curl http://localhost:3000/api/v1/projects
 ```
 
 ## Scripts raíz
@@ -64,19 +81,6 @@ pnpm --filter @guerrero-dev/cli exec node dist/index.js doctor
 | `pnpm test:e2e` | Tests e2e de la API contra PostgreSQL real |
 | `pnpm migrate` | Aplica migraciones pendientes a mano |
 
-## Estado — Definition of Done (Fase 3.19)
+## Estado
 
-- [x] Monorepo pnpm, Node 24 LTS, TypeScript, ESLint, Prettier
-- [x] Domain package (por capacidad)
-- [x] Application package (casos de uso + puertos)
-- [x] Infrastructure package (Postgres real; Ollama provider real; resto placeholder)
-- [x] Agent Core skeleton (PolicyEvaluator funcional)
-- [x] Execution contracts (`IExecutionEngine`, `NoopExecutionEngine`)
-- [x] PostgreSQL + pgvector, Docker Compose
-- [x] Configuration, structured logging, health checks
-- [x] CLI (`guerrero doctor`)
-- [x] Unit, integration y e2e tests
-- [x] GitHub Actions (con servicio Postgres)
-- [x] README
-
-Deliberadamente NO instalado todavía: `@cline/sdk`, SDK de OpenCode — eso es Fase 7, después de validar el contrato `IExecutionEngine`.
+Vertical slice completo y verificado (build, typecheck, lint, format, 14 tests unitarios en verde; API y CLI probados a mano). Pendiente de correr contra un PostgreSQL real: `docker compose up -d postgres` y `guerrero doctor` debería reportar `Status: READY`. Ver `docs/fase-3-implementacion.md` para el detalle de la verificación y qué queda deliberadamente fuera de esta fase.
