@@ -1353,6 +1353,80 @@ verificado contra Git real, PostgreSQL y el entorno real de desarrollo,
 no solo build/typecheck en sandbox. Commit: `e24052a`
 (`test(memory): verify candidate detection pipeline`).
 
+## 14m. Fase 4.8 — CERRADA. RiskSignal: capacidad contractual diferida (decisión explícita, no pendiente)
+
+Con el Commit Collector (§14k) y `CandidateDetectionService` verificado
+de punta a punta contra Git real (§14l), se evaluó si `RiskSignal`
+producers debía ser el siguiente incremento — era el único hueco
+visible restante. Se revisó el código real antes de decidir, no la
+memoria de auditorías previas:
+
+```text
+RiskSignal
+    ↓
+CandidateExtractionResult
+    ↓
+       ❌ frontera actual — sin wiring
+MemoryCandidateEvaluator.evaluate(candidate: MemoryCandidate)
+```
+
+`MemoryCandidateEvaluator.evaluate()` (Fase 4.7) recibe únicamente
+`MemoryCandidate`, no `CandidateExtractionResult` — ni `riskSignals` ni
+`outcome: "pending_review"` tienen hoy ningún camino hacia scoring,
+promotion, policy o conflict detection sin antes rediseñar esa frontera
+entre 4.7 y 4.8. Confirmado por grep: ningún archivo del código
+(scoring, promotion, policy, conflict) referencia `riskSignals` fuera
+de su propia definición y de `DeterministicCandidateExtractor`/
+`CandidateDetectionService`, que solo lo propagan vacío.
+
+**Decisión explícita de alcance** (no "pendiente", no "olvidado"):
+
+> `RiskSignal` permanece como capacidad contractual diferida. No se
+> implementan productores mientras no exista un consumidor funcional y
+> una especificación verificable de las señales de riesgo. La
+> detección de candidatos de Fase 4.8 se considera completa con el
+> pipeline determinista Git → CandidateDetectionService → Candidate,
+> validado contra Git real.
+
+Razón para no implementarlo ahora, no solo "falta de tiempo": el único
+caso motivador conocido (`gescomph-api/92475e3`, bypass CSRF invisible
+en el mensaje del commit, solo detectable leyendo el diff completo) es
+estructuralmente más difícil que las 5 reglas deterministas actuales
+del extractor (todas basadas en paths) — no hay evidencia todavía de
+que un productor determinista lo capture sin inventar semántica.
+Implementarlo ahora habría exigido decidir simultáneamente: qué
+significa cada tipo de riesgo, qué reglas lo generan, cómo afecta al
+scoring, cómo afecta a la promoción, cómo llega a revisión humana, y
+cómo se diferencia de `confidence`/`importance` — eso ya no sería
+"terminar 4.8", sería rediseñar la frontera 4.7↔4.8 sin necesidad
+funcional demostrada. Mismo criterio que `NoopMemoryConflictDetector`
+en 4.7 (§14e-bis): un placeholder documentado, no un gap oculto.
+
+**Estado final de Fase 4.8:**
+
+```text
+FASE 4.8 — Candidate Detection
+────────────────────────────────────────
+Noise Filter                 ✅
+Commit Analyzer              ✅
+GitHistorySource             ✅
+Candidate Extractor          ✅
+GitCommitCollector           ✅
+CandidateDetectionService    ✅
+Git → Candidate E2E          ✅ (bf7f9fb, a1dc883 — Git real)
+────────────────────────────────────────
+RiskSignal producers         ⏸ DIFERIDO (decisión explícita arriba)
+────────────────────────────────────────
+FASE 4.8                     CERRADA
+```
+
+**Siguiente paso del plan original de Fase 4** (no Fase 5 todavía):
+4.9 — End-to-End Scenarios, cruzando el pipeline completo
+`Git → Detection → Candidate → Evaluation → Deduplication → Scoring →
+Promotion → Memory` contra infraestructura real. Alcance y criterios de
+aceptación de 4.9 se definen antes de escribir código, mismo criterio
+que 4.7 y 4.8.
+
 ## 15-18. Contratos de dominio
 
 ```text
