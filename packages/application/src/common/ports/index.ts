@@ -1,5 +1,6 @@
 export * from "./IEmbeddingProvider.js";
 export * from "./IExecutionEngine.js";
+export * from "./IFileReader.js";
 export * from "./IGitTrackedFilesSource.js";
 export * from "./ILLMProvider.js";
 export * from "./IMemoryEmbeddingRepository.js";

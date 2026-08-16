@@ -69,6 +69,10 @@ export class GitTrackedFilesSource implements IGitTrackedFilesSource {
       );
     }
 
-    return new GitTrackedFilesSourceError("unknown", err.message ?? "Fallo desconocido al invocar Git.", error);
+    return new GitTrackedFilesSourceError(
+      "unknown",
+      err.message ?? "Fallo desconocido al invocar Git.",
+      error,
+    );
   }
 }

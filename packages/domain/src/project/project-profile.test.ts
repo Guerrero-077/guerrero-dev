@@ -57,9 +57,7 @@ describe("isValidTechnology", () => {
   });
 
   it("rechaza category desconocida", () => {
-    expect(isValidTechnology({ ...valid, category: "database" as TechnologyCategory })).toBe(
-      false,
-    );
+    expect(isValidTechnology({ ...valid, category: "database" as TechnologyCategory })).toBe(false);
   });
 
   it("rechaza evidence vacío", () => {
