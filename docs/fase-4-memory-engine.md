@@ -1583,6 +1583,63 @@ typecheck, tests, `test:integration`, lint, format), mismo criterio que
 el resto de Fase 4 — no se declara cerrado hasta pasar contra Ollama y
 PostgreSQL reales en la máquina de Santiago.
 
+### Hallazgo durante la primera verificación real: carrera entre 4.9-A y 4.9-B
+
+Primera corrida de `pnpm test:integration` tras implementar 4.9-B:
+`candidate-promotion-e2e.test.ts` (4.9-A) falló — `evaluation.duplicateOf`
+no era `null` cuando debía serlo. No fue un fallo del sistema bajo
+prueba: `MemoryCandidateDeduplicator` encontró, correctamente, una
+`Memory` que en ese instante existía en Postgres. El problema es que
+esa `Memory` era la que `candidate-duplicate-promotion-e2e.test.ts`
+(4.9-B) siembra para su propio escenario.
+
+**Causa raíz**: `vitest run tests/integration` corre los archivos de
+test en paralelo por defecto — no hay ninguna configuración de
+secuencialidad. 4.9-A y 4.9-B comparten deliberadamente la misma
+evidencia real (`bf7f9fb`, decisión ya tomada para reducir variables).
+En paralelo, mientras 4.9-B corre su pipeline real y agrega un
+`MemorySource` con `sourceReference = bf7f9fb` a su `Memory` sembrada,
+4.9-A puede estar evaluando su propio candidato en ese mismo instante
+— el deduplicador real ve legítimamente esa `Memory` como duplicado.
+
+```text
+4.9-A ──┐
+        ├── PostgreSQL real + bf7f9fb compartido
+4.9-B ──┘
+```
+
+**Categorización**: ni bug de `MemoryCandidateDeduplicator`/
+`MemoryCandidateEvaluator`/`MemoryCandidatePromoter` (se comportaron
+exactamente como está diseñado — encontraron un duplicado real), ni
+contrato insuficiente de dominio, ni nueva capacidad. Es una propiedad
+de la estrategia de integración de Fase 4.9: varios escenarios corren
+contra la misma infraestructura real y comparten evidencia Git real, y
+eso exige controlar el paralelismo entre archivos — no es deuda del
+producto.
+
+**Decisión, explícitamente acotada al script de integración**:
+
+```json
+"test:integration": "cross-env RUN_INTEGRATION_TESTS=true vitest run tests/integration --no-file-parallelism"
+```
+
+`--no-file-parallelism` es un flag de CLI de Vitest 2.1+, aplicado solo
+a esta invocación — `vitest.config.ts` no se tocó, `pnpm test`
+(unitarios, sin estado real compartido) sigue corriendo en paralelo sin
+cambios. Con este flag, cada archivo de `tests/integration/` completa
+su `beforeAll`/tests/`afterAll` antes de que empiece el siguiente,
+eliminando la carrera sin tocar ningún test ni código de producción
+(`MemoryCandidateDeduplicator`, `MemoryCandidateEvaluator`,
+`MemoryCandidatePromoter`, ni el mecanismo de limpieza/aislamiento de
+cada escenario individual).
+
+Alternativas descartadas: cambiar `vitest.config.ts` globalmente
+(afectaría innecesariamente a los tests unitarios), inventar contenido
+distinto por escenario (alejaría los escenarios de evidencia Git real,
+justo lo que 4.9 existe para evitar), mockear la deduplicación
+(destruiría lo que el escenario necesita demostrar), o una base de
+datos por test (más aislamiento, complejidad innecesaria por ahora).
+
 ## 15-18. Contratos de dominio
 
 ```text

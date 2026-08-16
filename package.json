@@ -18,7 +18,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:integration": "cross-env RUN_INTEGRATION_TESTS=true vitest run tests/integration",
+    "test:integration": "cross-env RUN_INTEGRATION_TESTS=true vitest run tests/integration --no-file-parallelism",
     "test:e2e": "cross-env RUN_INTEGRATION_TESTS=true vitest run tests/e2e",
     "migrate": "tsx scripts/migrate.ts",
     "benchmark:embeddings": "tsx scripts/benchmark-embeddings.ts",
