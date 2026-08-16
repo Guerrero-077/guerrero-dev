@@ -3,10 +3,15 @@
  *
  * `GitHistorySource` (Fase 4.8.3): implementación real de
  * `IGitHistorySource` (application/memory) vía shell directo a Git
- * (`execFile`). Primer caso de uso concreto del área — el resto de
- * operaciones de git (status, diff, commit, branch) para agent-core y
- * project-intelligence siguen sin implementación, se agregan cuando haya
- * un caso de uso concreto que las requiera.
+ * (`execFile`). `GitCommitCollector` (Fase 4.8, Commit Collector):
+ * implementación real de `ICommitCollector` — traduce un commit real de
+ * Git a `CommitSnapshot`, la pieza que faltaba para alimentar el resto
+ * del pipeline de Candidate Detection con datos reales en vez de fixtures
+ * a mano. El resto de operaciones de git (status, commit, branch) para
+ * agent-core y project-intelligence siguen sin implementación, se agregan
+ * cuando haya un caso de uso concreto que las requiera.
  */
+export * from "./GitCommitCollector.js";
+export * from "./GitCommitCollectorError.js";
 export * from "./GitHistorySource.js";
 export * from "./GitHistorySourceError.js";
