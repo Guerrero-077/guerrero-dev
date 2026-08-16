@@ -1,11 +1,14 @@
 # Fase 6 — Code Intelligence: Mapa (diseño, sin código)
 
-**Estado:** Propuesta formal, pendiente de revisión y aprobación —
-mismo patrón que `docs/fase-5-project-intelligence-map.md` antes de
-congelarse: primero se revisa y ajusta este documento, después se
-autoriza 6.1. Este mapa **no es permiso implícito** para implementar
-6.1–6.5 de una sola vez: cada subfase necesita su propio contrato
-específico antes de empezar.
+**Estado:** Congelado (revisado y ajustado en dos rondas de revisión de
+Santiago — commit `51a9b99` con las correcciones sustantivas, congelado
+en este commit). A partir de aquí, cualquier cambio al contrato de
+`CodeSymbol`/`DependencyEdge`, al alcance `.ts`, a la no-persistencia o
+a la superficie de consulta (§8) es una decisión de cambio de alcance,
+no una modificación incidental durante implementación. Este mapa **no
+es permiso implícito** para implementar 6.1–6.5 de una sola vez: cada
+subfase necesita su propio contrato específico antes de empezar, mismo
+criterio que Fase 5.
 **Precede a:** `docs/fase-5-project-intelligence-closure.md`, Fase 5
 CLOSED. Fase 5 no se modifica como consecuencia de este documento.
 **Basado en** una auditoría real del código actual (no en el comentario
