@@ -1487,14 +1487,35 @@ contratos existentes para acomodar el test.
 **Alcance estrictamente acotado**: NO 4.9-B/C/D todavía, NO
 `RiskSignal`, NO `ConflictDetector` real, NO CLI/API/cron, NO Fase 5+.
 
-**Estado: pendiente de verificación en el entorno real** — y no basta
-una corrida. Se requieren dos ejecuciones consecutivas de
-`RUN_INTEGRATION_TESTS=true pnpm test:integration`: la primera prueba
-el CREATE contra un Postgres que puede tener residuos de una ejecución
-previa a este cambio; la segunda prueba que la limpieza del `beforeAll`
-deja el mismo estado inicial y el resultado vuelve a ser CREATE, no que
-el candidato se detecta como su propio duplicado — exactamente el bug
-de repetibilidad que motivó el diseño de la limpieza.
+**Estado — verificado en el entorno real, dos ejecuciones consecutivas:**
+
+```text
+☑ build (11 proyectos)
+☑ typecheck estricto
+☑ 200/200 tests unitarios
+☑ 1ª corrida test:integration — 45/45, candidate-promotion-e2e.test.ts
+  (1/1, 3548ms) — CREATE real
+☑ 2ª corrida test:integration — 45/45, candidate-promotion-e2e.test.ts
+  (1/1, 2392ms) — CREATE real de nuevo, no duplicado — confirma que la
+  limpieza acotada por sourceReference deja el mismo estado inicial en
+  ambas corridas contra el mismo PostgreSQL real sin reset
+☑ lint limpio
+☑ format:check limpio
+```
+
+**Fase 4.9-A — CERRADA.** Primera prueba real de que el Memory Engine
+funciona como sistema, no solo como piezas aisladas: un commit real de
+Git termina, sin ningún doble de test, como una fila de `Memory` y
+`MemorySource` en PostgreSQL, con score calculado por la fórmula real
+de `MemoryCandidateScorer` y deduplicación resuelta con embeddings
+reales de Ollama contra pgvector. Commit: `92c71a0`
+(`test(memory): Fase 4.9-A - Git real -> Memory persistida end-to-end`).
+
+Siguiente paso: 4.9-B (duplicado → comportamiento de actualización
+definido por 4.7, no inventado), decidiendo primero cómo generar un
+candidato semánticamente casi idéntico a una `Memory` ya persistida sin
+introducir contenido artificial que distorsione la evidencia real —
+mismo criterio que 4.9-A. No autorizado todavía.
 
 ## 15-18. Contratos de dominio
 
