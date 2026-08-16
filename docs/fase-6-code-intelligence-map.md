@@ -439,11 +439,21 @@ Fase 5 usó (`domain/project` + `application/project-intelligence` +
 > analizar archivos `.ts`. `ts-morph` queda encapsulado en
 > `infrastructure/code-intelligence` y no forma parte de los contratos
 > de dominio ni aplicación. El análisis utiliza únicamente capacidades
-> sintácticas; no se construye `ts.Program`/type-checker como parte de
-> 6.x. Cuando la API de alto nivel de `ts-morph` no represente
-> adecuadamente una construcción necesaria —por ejemplo, métodos de
-> object literals— la implementación podrá inspeccionar el AST
-> subyacente directamente.
+> sintácticas: no se utiliza el type-checker ni se ejecutan diagnósticos
+> semánticos o resolución semántica de módulos/tipos. Diagnósticos
+> puramente sintácticos (p. ej. para detectar sintaxis inválida) están
+> dentro de esta frontera, aunque `ts-morph` construya internamente un
+> `Program` para exponerlos — lo que 6.x no hace es invocar
+> `getTypeChecker()`/`getSemanticDiagnostics()` ni depender de
+> resolución de módulos. Cuando la API de alto nivel de `ts-morph` no
+> represente adecuadamente una construcción necesaria —por ejemplo,
+> métodos de object literals— la implementación podrá inspeccionar el
+> AST subyacente directamente.
+>
+> Verificado en la auditoría técnica de 6.3 (`ts-morph@28.0.0`):
+> `getProgram().getSyntacticDiagnostics(sourceFile)` produce 0
+> diagnósticos incluso para un import a un paquete inexistente —
+> confirma que esta vía no intenta resolución semántica de módulos.
 
 No se introduce `ICodeParser` como abstracción intermedia — la clase
 concreta es directamente `TsMorphCodeAnalyzer implements ICodeAnalyzer`.

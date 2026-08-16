@@ -7,6 +7,7 @@
  * project-intelligence/ (Fase 5.4), execution/ (placeholder).
  * Aquí, y solo aquí, el sistema conoce tecnologías externas concretas.
  */
+export * from "./code-intelligence/index.js";
 export * from "./configuration/index.js";
 export * from "./database/index.js";
 export * from "./embeddings/index.js";
