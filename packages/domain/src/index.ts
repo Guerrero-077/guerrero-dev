@@ -6,6 +6,7 @@
  * externas — solo tipos y lógica de dominio puros.
  */
 export * from "./agent/index.js";
+export * from "./code/index.js";
 export * from "./execution/index.js";
 export * from "./memory/index.js";
 export * from "./permissions/index.js";
