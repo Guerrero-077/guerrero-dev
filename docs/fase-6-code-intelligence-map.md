@@ -57,25 +57,44 @@ desde ahí".
 
 ## 2. Casos de uso v1
 
-**Aceptados para v1:**
+**Aceptados para v1** — tres casos de uso de usuario, distintos de los
+mecanismos internos que los resuelven:
 
 ```text
-A — "¿Dónde debería modificar algo para cambiar X comportamiento?"
-B — "¿Qué símbolos/archivos dependen de este archivo/símbolo?"
-     (y su inversa: ¿de qué depende este archivo?)
+A — ¿Dónde debería modificar algo para cambiar X comportamiento?
+B — ¿Qué hace este código / dónde está?
+C — ¿Cómo se relaciona este código con otro?
 ```
 
-**Explícitamente fuera de v1 (necesita Paso C, no evidenciado todavía):**
+```text
+B se materializa en v1 mediante:
+  - localización de símbolos (findSymbolsByName)
+  - localización de archivos
+  - evidencia estructural del rango de la declaración (line/endLine)
+
+C se materializa en v1 mediante:
+  - dependencias de archivo (getDependencies)
+  - dependientes de archivo (getDependents)
+  - imports/re-exports explícitos (DependencyEdge)
+```
+
+Caso de uso ≠ mecanismo interno: `getDependencies()` es una función de
+consulta que ayuda a responder C, no es C en sí misma — igual que
+`getProjectProfile()` en Fase 5 no era el objetivo de esa fase, sino el
+mecanismo de lectura.
+
+**Explícitamente fuera de v1 (necesita un cuarto caso, no evidenciado
+todavía):**
 
 ```text
-C — razonamiento sobre convenciones arquitectónicas
+D — razonamiento sobre convenciones arquitectónicas
     ("¿esto sigue el patrón hexagonal del repo?")
 ```
 
 Se rechazaron explícitamente dos casos de uso "candidato técnico"
 (búsqueda de símbolos import/export, búsqueda de call-sites) por ser
 capacidades internas del sistema, no preguntas de usuario — quedan
-disponibles como funciones de consulta (§7), no como casos de uso de
+disponibles como funciones de consulta (§8), no como casos de uso de
 primer nivel. También queda fuera de v1 un `queryProject()` libre, por
 la misma razón que en Fase 5 (§7 de ese mapa): no hay segundo consumidor
 real que lo demande todavía.
@@ -90,12 +109,26 @@ documento:**
 > semántica de intención en lenguaje natural queda como evolución
 > posterior dentro de Fase 6.
 
+Formulación más explícita de la frontera, para no sobreprometer:
+
+```text
+6.x no interpreta una intención arbitraria expresada en lenguaje natural.
+
+6.x puede aportar evidencia para A cuando X puede localizarse mediante:
+  - nombre de símbolo exacto
+  - texto literal
+  - ubicación/relación estructural conocida
+
+La traducción semántica de una intención libre
+("dónde se valida el login")
+queda fuera de 6.x.
+```
+
 Es decir: **6.x no resuelve A completamente**, la resuelve con lo que la
 evidencia estructural y la búsqueda literal permiten demostrar. Una
-resolución semántica de intención en lenguaje natural ("encuentra dónde
-se valida el login") es una capacidad posterior, todavía dentro de Fase
-6 — no se degrada a Fase 7, porque sigue siendo Code Intelligence, no
-razonamiento del agente.
+resolución semántica de intención en lenguaje natural es una capacidad
+posterior, todavía dentro de Fase 6 — no se degrada a Fase 7, porque
+sigue siendo Code Intelligence, no razonamiento del agente.
 
 ## 3. Niveles de capacidad de Fase 6 (marco de referencia)
 
@@ -312,9 +345,13 @@ Cada `VariableDeclarator` de un `const a = 1, b = 2;` produce su propio
 
 ## 7. Búsqueda literal
 
-Caso de uso B y parte de A necesitan localizar coincidencias que no
-corresponden a un símbolo indexado (un string, un identificador usado
-mid-expresión, un comentario). Regla congelada:
+La búsqueda literal constituye una capacidad independiente que permite
+localizar referencias textuales que no corresponden a un `CodeSymbol`
+(un string, un identificador usado mid-expresión, un comentario). Puede
+ser utilizada por el caso de uso A y por consultas de localización
+relacionadas con B, pero no forma parte del modelo semántico de
+`CodeSymbol` ni es la única vía de resolver B — `findSymbolsByName`
+(§8) ya cubre la localización de símbolos declarados. Regla congelada:
 
 > 6.x debe poder localizar coincidencias literales dentro de los
 > archivos `.ts` trackeados, sin requerir que la coincidencia
@@ -325,17 +362,44 @@ mid-expresión, un comentario). Regla congelada:
 ```typescript
 // application/code-intelligence/ports
 interface ICodeAnalyzer {
-  buildIndex(files: string[]): Promise<CodeIndex>;
+  analyze(repoRoot: string): Promise<CodeIndex>;
 }
 
 interface ICodeLiteralSearch {
-  search(files: string[], query: string): Promise<LiteralMatch[]>;
+  search(repoRoot: string, query: string): Promise<LiteralMatch[]>;
 }
 
 // application/code-intelligence — funciones puras
 function findSymbolsByName(index: CodeIndex, name: string): CodeSymbol[];
 function getDependencies(index: CodeIndex, filePath: string): DependencyEdge[];
 function getDependents(index: CodeIndex, filePath: string): DependencyEdge[];
+```
+
+Ambos puertos reciben `repoRoot`, no `files[]` — quien implementa
+(`infrastructure/code-intelligence`) es responsable de descubrir los
+`.ts` trackeados vía `IGitTrackedFilesSource` (§4) internamente. El
+llamador de `application`/`agent-core` no debe conocer ni transportar la
+enumeración de archivos como detalle de infraestructura — mismo
+principio que mantiene `IGitTrackedFilesSource` como el único punto de
+descubrimiento de archivos, sin un segundo adapter paralelo:
+
+```text
+Application
+    │  analyze(repoRoot) / search(repoRoot, query)
+    ▼
+ICodeAnalyzer / ICodeLiteralSearch
+    │
+    ▼
+Infrastructure
+ ┌──────────────────────┐
+ │ IGitTrackedFilesSource│
+ │         ↓             │
+ │     .ts files          │
+ │         ↓             │
+ │   ts-morph / literal   │
+ │         ↓             │
+ │  CodeIndex / matches   │
+ └──────────────────────┘
 ```
 
 `findSymbolsByName` es **exact-match únicamente** — sin fuzzy, sin
@@ -432,8 +496,12 @@ Extracción
   ☐ Los 6 kinds cubiertos, verificados contra archivos reales del repo
   ☐ exported correcto en el 100% de los símbolos extraídos de un scan real
   ☐ containerName correcto, incluido el caso Mapper
-  ☐ Cada variante de import/re-export del contrato (§6e) produce el
-    DependencyEdge esperado sobre al menos un ejemplo real del repo
+  ☐ Cada variante sintáctica presente en el repo real (§6e) se verifica
+    mediante dogfooding; las variantes no presentes en `guerrero-dev` se
+    cubren mediante fixtures sintéticos mínimos o quedan documentadas
+    explícitamente como no verificables por dogfooding — el repositorio
+    real valida comportamiento real, los fixtures solo cubren sintaxis
+    que el repositorio no ejercita
 
 Consulta
   ☐ findSymbolsByName localiza símbolos reales conocidos (ContextBuilder,
@@ -455,7 +523,7 @@ Arquitectura
 
 Explícitamente fuera del criterio de cierre de v1: type-checker/grafo de
 llamadas resuelto, RAG/embeddings, razonamiento LLM sobre arquitectura
-(Paso C), persistencia del índice, `.tsx`, otros lenguajes.
+(caso D, §2), persistencia del índice, `.tsx`, otros lenguajes.
 
 ---
 
