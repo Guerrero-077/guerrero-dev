@@ -33,14 +33,14 @@ describe("parseCommitMetadata", () => {
   });
 
   it("preserva caracteres especiales (unicode, emoji, comillas) en el mensaje", () => {
-    const message = 'fix: corrige acentuación en español (áéíóú, ñ) 🐛 y comillas "dobles" y \'simples\'\n';
+    const message = "fix: corrige acentuación en español (áéíóú, ñ) 🐛 y comillas \"dobles\" y 'simples'\n";
     const stdout = buildStdout(SHA, "María José Ñañez", "2026-08-14T22:35:00Z", message);
 
     const result = parseCommitMetadata(stdout);
 
     expect(result.author).toBe("María José Ñañez");
     expect(result.message).toBe(
-      'fix: corrige acentuación en español (áéíóú, ñ) 🐛 y comillas "dobles" y \'simples\'',
+      "fix: corrige acentuación en español (áéíóú, ñ) 🐛 y comillas \"dobles\" y 'simples'",
     );
   });
 
@@ -51,6 +51,29 @@ describe("parseCommitMetadata", () => {
     const result = parseCommitMetadata(stdout);
 
     expect(result.message).toBe("mensaje con línea en blanco final\n");
+  });
+
+  it("normaliza \\r\\n a \\n en el mensaje (Git for Windows emite CRLF en el salto que agrega al final)", () => {
+    // Bug real encontrado corriendo la integration test contra Git en
+    // Windows (no se reproduce en Linux): el salto de línea final que
+    // Git agrega después de %B llega como "\r\n" en ese entorno, dejando
+    // un "\r" colgante si solo se recorta "\n". Regresión, ver JSDoc de
+    // parseCommitMetadata.
+    const stdout = buildStdout(SHA, "Santiago", "2026-08-14T22:35:00Z", "feat: mensaje con CRLF\r\n");
+
+    const result = parseCommitMetadata(stdout);
+
+    expect(result.message).toBe("feat: mensaje con CRLF");
+    expect(result.message.endsWith("\r")).toBe(false);
+  });
+
+  it("normaliza \\r\\n internos de un mensaje multi-línea, no solo el final", () => {
+    const message = "feat: título\r\n\r\nCuerpo con CRLF interno.\r\nSegunda línea.\r\n";
+    const stdout = buildStdout(SHA, "Santiago", "2026-08-14T22:35:00Z", message);
+
+    const result = parseCommitMetadata(stdout);
+
+    expect(result.message).toBe("feat: título\n\nCuerpo con CRLF interno.\nSegunda línea.");
   });
 
   it("lanza invalid_output si faltan separadores de campo", () => {

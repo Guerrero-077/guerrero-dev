@@ -72,10 +72,10 @@ describe.skipIf(!RUN)("GitCommitCollector (integration, contra este mismo reposi
   });
 
   it("lanza commit_not_found para una sha bien formada pero inexistente", async () => {
-    await expect(collector.collect(NONEXISTENT_SHA)).rejects.toMatchObject({
-      name: "GitCommitCollectorError",
-      reason: "commit_not_found",
-    });
+    const error = await collector.collect(NONEXISTENT_SHA).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(GitCommitCollectorError);
+    expect((error as GitCommitCollectorError).reason).toBe("commit_not_found");
   });
 
   it("lanza not_a_repository cuando repoRoot no es un repositorio Git", async () => {
@@ -83,10 +83,10 @@ describe.skipIf(!RUN)("GitCommitCollector (integration, contra este mismo reposi
     try {
       const notARepoCollector = new GitCommitCollector(nonRepoDir);
 
-      await expect(notARepoCollector.collect(A2DD733)).rejects.toMatchObject({
-        name: "GitCommitCollectorError",
-        reason: "not_a_repository",
-      });
+      const error = await notARepoCollector.collect(A2DD733).catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(GitCommitCollectorError);
+      expect((error as GitCommitCollectorError).reason).toBe("not_a_repository");
     } finally {
       await rm(nonRepoDir, { recursive: true, force: true });
     }

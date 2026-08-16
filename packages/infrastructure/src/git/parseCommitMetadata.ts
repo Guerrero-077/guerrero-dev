@@ -36,10 +36,19 @@ export interface ParsedCommitMetadata {
  *
  * Solo los primeros 3 delimitadores separan campos (sha/author/timestamp)
  * — todo lo que sigue al tercero es el mensaje completo, sin importar
- * cuántos saltos de línea tenga. `%B` siempre termina en `\n` (así queda
- * guardado el mensaje en el objeto commit) — se recorta exactamente un
- * `\n` final, nunca todos los saltos de línea finales, para no perder una
- * línea en blanco intencional al final de un mensaje real.
+ * cuántos saltos de línea tenga. `%B` siempre termina en un salto de línea
+ * (así queda guardado el mensaje en el objeto commit) — se recorta
+ * exactamente uno, nunca todos los saltos de línea finales, para no
+ * perder una línea en blanco intencional al final de un mensaje real.
+ *
+ * Normaliza `\r\n` -> `\n` en todo el mensaje antes de recortar ese
+ * salto final: Git for Windows emite el salto de línea que él mismo
+ * agrega al final del bloque formateado (no el contenido del mensaje,
+ * que Git guarda siempre en LF) como `\r\n` en ese entorno — sin
+ * normalizar, quedaba un `\r` colgante después del recorte de `\n`,
+ * detectado corriendo la integration test real contra Git en Windows
+ * (no se reprodujo en Linux). Se normaliza el mensaje completo, no solo
+ * el final, para no dejar `\r` sueltos en mensajes de varias líneas.
  *
  * Deliberadamente estricta, mismo criterio que `parseCommitList.ts`
  * (Fase 4.8.3): si faltan separadores, la sha no matchea 40 hex, o la
@@ -62,7 +71,10 @@ export function parseCommitMetadata(stdout: string): ParsedCommitMetadata {
   const sha = stdout.slice(0, first);
   const author = stdout.slice(first + 1, second);
   const timestampRaw = stdout.slice(second + 1, third);
-  const message = stdout.slice(third + 1).replace(/\n$/, "");
+  const message = stdout
+    .slice(third + 1)
+    .replace(/\r\n/g, "\n")
+    .replace(/\n$/, "");
 
   if (!FULL_SHA_PATTERN.test(sha)) {
     throw new GitCommitCollectorError("invalid_output", `"${sha}" no es una SHA de 40 hex válida.`);

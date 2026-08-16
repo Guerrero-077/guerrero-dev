@@ -11,8 +11,12 @@ const execFileAsync = promisify(execFile);
  * Mismo valor y mismo razonamiento que `GitHistorySource.GIT_COMMAND_TIMEOUT_MS`
  * (§14i): tuning parameter, no decisión arquitectónica, sin evidencia
  * todavía de cuál es el número correcto para repos reales grandes.
+ * Nombre propio (no reexporta el de `GitHistorySource`) porque
+ * `git/index.ts` reexporta ambos módulos con `export *` — dos constantes
+ * con el mismo nombre en dos archivos distintos del mismo barrel
+ * colisionan (`TS2308`), aunque el valor sea igual.
  */
-export const GIT_COMMAND_TIMEOUT_MS = 10_000;
+export const GIT_COMMIT_COLLECTOR_TIMEOUT_MS = 10_000;
 
 interface ExecFileErrorLike {
   code?: string;
@@ -79,7 +83,7 @@ export class GitCommitCollector implements ICommitCollector {
     try {
       const { stdout } = await execFileAsync("git", ["--no-pager", ...args], {
         cwd: this.repoRoot,
-        timeout: GIT_COMMAND_TIMEOUT_MS,
+        timeout: GIT_COMMIT_COLLECTOR_TIMEOUT_MS,
         windowsHide: true,
       });
       return stdout;
@@ -106,7 +110,7 @@ export class GitCommitCollector implements ICommitCollector {
     if (err.killed) {
       return new GitCommitCollectorError(
         "timeout",
-        `La operación de Git excedió el timeout de ${GIT_COMMAND_TIMEOUT_MS}ms.`,
+        `La operación de Git excedió el timeout de ${GIT_COMMIT_COLLECTOR_TIMEOUT_MS}ms.`,
         error,
       );
     }
