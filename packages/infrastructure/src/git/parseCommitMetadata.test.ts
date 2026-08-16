@@ -44,13 +44,18 @@ describe("parseCommitMetadata", () => {
     );
   });
 
-  it("recorta exactamente un salto de línea final, no todos", () => {
-    const message = "mensaje con línea en blanco final\n\n";
+  it("recorta TODOS los saltos de línea finales, no solo uno", () => {
+    // Verificado contra Git real (xxd): %B contribuye su propio "\n" final
+    // (Git normaliza el mensaje guardado a exactamente uno, incluso si se
+    // intenta commitear varias líneas en blanco al final) y
+    // "git show -s --format=..." agrega OTRO "\n" como separador del
+    // bloque formateado — dos saltos de línea sin contenido real, no uno.
+    const message = "mensaje sin línea en blanco real al final\n\n";
     const stdout = buildStdout(SHA, "Santiago", "2026-08-14T22:35:00Z", message);
 
     const result = parseCommitMetadata(stdout);
 
-    expect(result.message).toBe("mensaje con línea en blanco final\n");
+    expect(result.message).toBe("mensaje sin línea en blanco real al final");
   });
 
   it("normaliza \\r\\n a \\n en el mensaje (Git for Windows emite CRLF en el salto que agrega al final)", () => {

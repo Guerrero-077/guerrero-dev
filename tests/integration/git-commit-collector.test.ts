@@ -9,6 +9,19 @@ import { GitCommitCollector, GitCommitCollectorError } from "@guerrero-dev/infra
 const execFileAsync = promisify(execFile);
 
 /**
+ * `rm(dir, { recursive: true, force: true })` sin más falla con `EBUSY`
+ * en Windows justo después de que un `execFile("git", ...)` corrido
+ * dentro de ese directorio termina (visto corriendo esta misma suite en
+ * Windows real, no en Linux): el proceso hijo ya salió, pero el SO
+ * todavía no soltó el handle del directorio en ese instante. `maxRetries`
+ * + `retryDelay` son las opciones nativas de `fs.rm` pensadas exactamente
+ * para esta condición de carrera — no hace falta un retry manual.
+ */
+async function removeTempDir(dir: string): Promise<void> {
+  await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+}
+
+/**
  * Test de integración (Fase 4.8, Commit Collector): valida
  * `GitCommitCollector` contra Git real. Se salta si RUN_INTEGRATION_TESTS
  * no está en "true" (mismo patrón que el resto de tests/integration/).
@@ -88,7 +101,7 @@ describe.skipIf(!RUN)("GitCommitCollector (integration, contra este mismo reposi
       expect(error).toBeInstanceOf(GitCommitCollectorError);
       expect((error as GitCommitCollectorError).reason).toBe("not_a_repository");
     } finally {
-      await rm(nonRepoDir, { recursive: true, force: true });
+      await removeTempDir(nonRepoDir);
     }
   });
 
@@ -111,7 +124,7 @@ describe.skipIf(!RUN)("GitCommitCollector (integration, contra este mismo reposi
     });
 
     afterAll(async () => {
-      await rm(tempRepoDir, { recursive: true, force: true });
+      await removeTempDir(tempRepoDir);
     });
 
     it("devuelve diff vacío y changedFiles: [] para un commit --allow-empty real", async () => {

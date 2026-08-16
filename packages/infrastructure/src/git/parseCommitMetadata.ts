@@ -36,19 +36,30 @@ export interface ParsedCommitMetadata {
  *
  * Solo los primeros 3 delimitadores separan campos (sha/author/timestamp)
  * — todo lo que sigue al tercero es el mensaje completo, sin importar
- * cuántos saltos de línea tenga. `%B` siempre termina en un salto de línea
- * (así queda guardado el mensaje en el objeto commit) — se recorta
- * exactamente uno, nunca todos los saltos de línea finales, para no
- * perder una línea en blanco intencional al final de un mensaje real.
+ * cuántos saltos de línea tenga.
  *
- * Normaliza `\r\n` -> `\n` en todo el mensaje antes de recortar ese
- * salto final: Git for Windows emite el salto de línea que él mismo
- * agrega al final del bloque formateado (no el contenido del mensaje,
- * que Git guarda siempre en LF) como `\r\n` en ese entorno — sin
- * normalizar, quedaba un `\r` colgante después del recorte de `\n`,
- * detectado corriendo la integration test real contra Git en Windows
- * (no se reprodujo en Linux). Se normaliza el mensaje completo, no solo
- * el final, para no dejar `\r` sueltos en mensajes de varias líneas.
+ * Se recortan TODOS los saltos de línea finales, no solo uno — corregido
+ * después de verificar con `xxd` contra Git real (no alcanzaba con
+ * inspección visual vía `cat -A`, que llevó a una primera versión
+ * incorrecta de este comentario): `git show -s --format=...` dos fuentes
+ * de salto de línea final se acumulan, ninguna con contenido real que
+ * preservar —
+ *
+ * 1. `%B` en sí mismo termina en exactamente un `\n` (verificado: Git
+ *    normaliza el mensaje guardado a un único salto de línea final al
+ *    hacer commit, incluso si se intenta commitear un mensaje con varias
+ *    líneas en blanco al final — probado creando un commit real con
+ *    `"subject\n\n\n\n"`, quedó guardado como `"subject\n"`. No existe
+ *    "una línea en blanco intencional al final de un mensaje real" que
+ *    preservar; Git ya la descarta antes de que este código la vea).
+ * 2. `git show -s --format=...` agrega, además, su propio salto de línea
+ *    separador después de todo el bloque formateado — un artefacto del
+ *    comando, no del contenido del commit.
+ *
+ * Además normaliza `\r\n` -> `\n` en todo el mensaje: Git for Windows
+ * emite ese salto de línea que él mismo agrega (el punto 2 de arriba)
+ * como `\r\n` en ese entorno — detectado corriendo la integration test
+ * real contra Git en Windows (no se reproduce en Linux).
  *
  * Deliberadamente estricta, mismo criterio que `parseCommitList.ts`
  * (Fase 4.8.3): si faltan separadores, la sha no matchea 40 hex, o la
@@ -74,7 +85,7 @@ export function parseCommitMetadata(stdout: string): ParsedCommitMetadata {
   const message = stdout
     .slice(third + 1)
     .replace(/\r\n/g, "\n")
-    .replace(/\n$/, "");
+    .replace(/\n+$/, "");
 
   if (!FULL_SHA_PATTERN.test(sha)) {
     throw new GitCommitCollectorError("invalid_output", `"${sha}" no es una SHA de 40 hex válida.`);
