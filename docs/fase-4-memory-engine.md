@@ -746,6 +746,76 @@ contratos, testeados con fakes) y, sobre todo, quién produce el
 diseño pendiente (reglas deterministas vs. LLM vs. híbrido) que se discute
 antes de escribir código, mismo criterio aplicado en 4.6→4.7.
 
+## 14e-bis. Cierre de Fase 4.7 — Validator/Deduplicator/Scorer reales + ConflictDetector placeholder
+
+Auditoría previa (`docs/fase-a-auditoria.md`, Gap 3) marcó 4.7 como
+incompleta: `Evaluator`/`Promoter` solo probados con fakes, sin
+implementaciones concretas de los cuatro puertos restantes. Antes de
+escribir código se revisaron los contratos existentes y esta misma
+sección (§14e) para no inventar comportamiento nuevo — tres decisiones
+no estaban congeladas y se tomaron explícitamente acá, no en el código:
+
+**`DeterministicMemoryCandidateValidator`** — sin ambigüedad: reutiliza
+`isValidConfidence`/`isValidImportance`/`isScopeConsistent` de
+`MemoryInvariants.ts` (dominio), sin agregar ninguna regla nueva.
+
+**`MemoryCandidateScorer`** — el diseño original (§14e) ya proponía la
+fórmula en concepto ("combinaría confidence/importance/jerarquía de
+sourceType") sin pesos. Pesos elegidos:
+
+```text
+score = confidence * 0.5 + importance * 0.3 + sourceTypeWeight * 0.2
+
+sourceTypeWeight (jerarquía de MemorySource.ts, §6-7):
+  repository / file / commit / test / manual   -> 1.0
+  conversation                                  -> 0.7
+  agent_observation                             -> 0.4
+```
+
+Provisional, igual criterio que `DEFAULT_PROJECT_RANKING_WEIGHTS` en
+`MemoryRanker` (Fase 4.6): punto de partida, no medición — se revisita
+con benchmark real de promoción cuando haya evidencia de falsos
+positivos/negativos.
+
+**`MemoryCandidateDeduplicator`** — vive en `application/services`
+(igual que `MemoryRetriever`), no en `infrastructure`: solo depende de
+los puertos `IEmbeddingProvider` + `IMemoryCandidateRetriever` de Fase
+4.6, reutilizando el mismo candidate pool semántico en vez de construir
+una segunda infraestructura de búsqueda. Filtra el pool a memorias del
+mismo `type` que el candidato antes de mirar similitud (un `"fact"`
+nunca es duplicado de una `"decision"`). Umbral de similitud: **0.90**
+— más permisivo que el 0.96 usado como ejemplo ilustrativo en §24-27
+(ese número nunca fue una decisión congelada). Configurable por
+constructor, sin benchmark real todavía que lo confirme.
+
+**`NoopMemoryConflictDetector`** — placeholder consciente, siempre
+devuelve `[]`. No hay ningún algoritmo determinista documentado en este
+archivo para detectar contradicción semántica ("Clean Architecture" vs.
+"arquitectura hexagonal"), y "conflict resolution avanzado" está
+explícitamente fuera de alcance de Fase 4 (§31). Escribir una
+heurística sin evidencia de que funciona habría sido inventar una regla
+nueva — se prefirió dejarlo explícito y sin implementar, mismo criterio
+que `NoopExecutionEngine` en `execution/`. **Este es el único punto que
+sigue abierto dentro de 4.7** — reemplazar este placeholder por
+detección real (heurística con evidencia o LLM) es el siguiente
+incremento pendiente sobre Candidate Engine.
+
+**Estado tras este cierre:**
+
+```text
+☑ DeterministicMemoryCandidateValidator — implementación real, 8 tests unitarios
+☑ MemoryCandidateScorer — implementación real con pesos documentados arriba, 5 tests unitarios
+☑ MemoryCandidateDeduplicator — implementación real (reusa retrieval de 4.6), 9 tests unitarios
+☑ NoopMemoryConflictDetector — placeholder consciente y documentado, 2 tests unitarios
+☐ Verificación end-to-end contra PostgreSQL+Ollama real — pendiente de
+  correr en el entorno Windows real del desarrollador (el sandbox de
+  esta sesión no tuvo acceso al registry de pnpm para instalar
+  dependencias, misma limitación ya declarada en Fase 4.4/A)
+☐ ConflictDetector real — deferido, ver arriba
+```
+
+Commit recomendado: `feat(memory): implement candidate validation and scoring`.
+
 ## 14f. Fase 4.8.x — Deterministic Commit Noise Filter: decisión
 
 Primer incremento concreto de Fase 4.8 (Candidate Detection). Contexto
