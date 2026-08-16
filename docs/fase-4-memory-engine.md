@@ -1302,7 +1302,7 @@ Git real, no ampliar el modelo de riesgo.
 
 **Commit 2 — dos piezas, un mismo objetivo verificable:**
 
-1. `CandidateDetectionService.test.ts` (18 tests, dobles de test
+1. `CandidateDetectionService.test.ts` (9 tests, dobles de test
    "tontos" para `ICommitAnalyzer`/`ICommitNoiseFilter`/`ICandidateExtractor`,
    mismo criterio que `fakeGitHistorySource` en
    `DeterministicCommitAnalyzer.test.ts`): corte temprano cuando el
@@ -1335,10 +1335,23 @@ Git real, no ampliar el modelo de riesgo.
 Fase 4.9, NO Fase 5+. Ningún contrato existente (`CommitSnapshot`,
 `CommitSignal`, `CandidateExtractionResult`, `RiskSignal`) se modificó.
 
-**Estado:** pendiente de verificación en el entorno real de Santiago
-(build/typecheck/tests/lint/format) antes de declarar cerrado — mismo
-criterio que el Commit Collector: no se cierra solo porque pase en el
-sandbox.
+**Estado — verificado en el entorno real:**
+
+```text
+☑ build (11 proyectos)
+☑ typecheck estricto
+☑ 200/200 tests unitarios (CandidateDetectionService.test.ts: 9/9)
+☑ 44/44 tests de integración (candidate-detection-pipeline.test.ts: 2/2,
+  1130ms — incluye bf7f9fb con SCHEMA_PATH+INTERFACE_IMPL_DI_PATTERN
+  reales y a1dc883 cortado antes del extractor)
+☑ lint limpio
+☑ format:check limpio
+```
+
+**Commit 2 — CERRADO**, con el mismo criterio que el Commit Collector:
+verificado contra Git real, PostgreSQL y el entorno real de desarrollo,
+no solo build/typecheck en sandbox. Commit: `e24052a`
+(`test(memory): verify candidate detection pipeline`).
 
 ## 15-18. Contratos de dominio
 
