@@ -813,11 +813,24 @@ incremento pendiente sobre Candidate Engine.
   0 regresiones), 41 tests de integración/e2e correctamente `skipped`
   (requieren PostgreSQL/Ollama reales corriendo, no evaluados en este
   incremento)
-☐ Verificación end-to-end contra PostgreSQL+Ollama real (`RUN_INTEGRATION_TESTS=true
-  pnpm test:integration`) — pendiente, requiere `docker compose up -d postgres`
-  y Ollama corriendo
+☑ Verificación end-to-end contra PostgreSQL+Ollama real —
+  `RUN_INTEGRATION_TESTS=true pnpm test:integration`: 7 archivos, 36/36
+  passed. En el camino se encontró y corrigió un bug de aislamiento
+  preexistente de Fase 4.6 en `memory-candidate-retriever.test.ts`
+  (competía por `limit: 10` contra memorias `global` de otros archivos
+  de test corriendo en paralelo contra la misma base — nunca se había
+  visto porque, según `docs/fase-a-auditoria.md`, esta fue la primera
+  vez que el suite completo de integración corrió contra Postgres real).
+☑ `pnpm lint` + `pnpm format:check` — limpio.
 ☐ ConflictDetector real — deferido, ver arriba
 ```
+
+**Fase 4.7 — CERRADA en todo lo verificable.** `ConflictDetector` queda
+explícitamente como decisión arquitectónica pendiente (heurística vs.
+LLM), no como deuda a rellenar artificialmente — ver razonamiento
+arriba. El resto (Validator, Scorer, Deduplicator, Evaluator, Promoter)
+está implementado, testeado con fakes, y verificado contra
+PostgreSQL+Ollama reales de punta a punta.
 
 Commit recomendado: `feat(memory): implement candidate validation and scoring`.
 
