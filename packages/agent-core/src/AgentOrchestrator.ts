@@ -11,15 +11,22 @@ import { ToolSelector } from "./ToolSelector.js";
  * de principio a fin: construir contexto → planificar → evaluar política →
  * ejecutar. Hoy compone las piezas pero sin loop de conversación real
  * (`AgentLoop`) ni LLM conectado — eso es Fase 7.
+ *
+ * `contextBuilder` se recibe por constructor (Fase 5.8), no se instancia
+ * aquí — `ContextBuilder` ya requiere `IProjectIntelligenceProvider`, y
+ * quien construye ese provider concreto (`infrastructure`) es
+ * responsabilidad de quien ensambla este orquestador, no de esta clase.
+ * `run()` sigue descartando el `BuiltContext` deliberadamente: conectarlo
+ * con `Planner`/la ejecución real sigue siendo Fase 7, fuera de 5.8.
  */
 export class AgentOrchestrator {
-  private readonly contextBuilder = new ContextBuilder();
   private readonly toolSelector = new ToolSelector();
   private readonly planner: Planner;
 
   constructor(
     private readonly executionEngine: IExecutionEngine,
     private readonly policyEngine: IPolicyEngine,
+    private readonly contextBuilder: ContextBuilder,
     private readonly logger: ILogger = noopLogger,
   ) {
     this.planner = new Planner(executionEngine);
