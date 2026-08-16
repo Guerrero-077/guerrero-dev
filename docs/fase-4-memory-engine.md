@@ -1427,6 +1427,75 @@ Promotion → Memory` contra infraestructura real. Alcance y criterios de
 aceptación de 4.9 se definen antes de escribir código, mismo criterio
 que 4.7 y 4.8.
 
+## 14n. Fase 4.9-A — Git real -> Memory persistida (primer escenario end-to-end)
+
+Alcance acordado antes de escribir código: 4.9 tiene cinco escenarios
+(A nuevo candidato, B duplicado, C score insuficiente, D commit
+ruidoso, E conflicto — explícitamente fuera de alcance mientras
+`NoopMemoryConflictDetector` siga siendo un placeholder). Se implementa
+uno a la vez, empezando por A (happy path completo), porque si esa
+columna vertebral funciona contra infraestructura real, B/C/D se
+apoyan en la misma cadena.
+
+**`tests/integration/candidate-promotion-e2e.test.ts`** conecta por
+primera vez en código lo que hasta 4.8 solo existía como piezas
+probadas por separado:
+
+```text
+Git real -> GitCommitCollector -> DeterministicCommitAnalyzer
+(+ GitHistorySource real) -> DeterministicCommitNoiseFilter ->
+DeterministicCandidateExtractor -> CandidateDetectionService ->
+MemoryCandidateEvaluator (Validator + Deduplicator real con
+OllamaEmbeddingProvider + DrizzleMemoryCandidateRetriever reales +
+NoopMemoryConflictDetector + Scorer) -> MemoryCandidatePromoter
+(+ DrizzleMemoryPromotionUnitOfWork real) -> PostgreSQL + pgvector
+```
+
+Reusa `bf7f9fb` (mismo commit ya verificado en 4.8): produce un
+candidato `SCHEMA_PATH` con `confidence=0.5`/`importance=0.5`/
+`sourceType="commit"`, score real `0.6` con la fórmula de
+`MemoryCandidateScorer` — por encima del umbral `0.5` sin ajustar nada.
+
+**Problema de repetibilidad encontrado antes de escribir el test, no
+después:** `bf7f9fb` es determinista — el mismo candidato con el mismo
+`content` en cada corrida. Contra el mismo PostgreSQL real sin reset
+entre ejecuciones (así corre `pnpm test:integration` en el entorno de
+Santiago), la segunda corrida de la suite encontraría la `Memory`
+creada por la primera como "duplicado" (similitud ~1.0) — el escenario
+dejaría de ser un CREATE. No es un bug de `MemoryCandidatePromoter`:
+tratar un candidato idéntico como duplicado es correcto. Es un
+problema de repetibilidad del fixture persistente.
+
+**Decisión de aislamiento** (explícitamente NO `projectId`, porque
+`DeterministicCandidateExtractor` siempre produce `scope: "global"`,
+`projectId: null` — el proyecto de test no representa el ámbito real
+de la memoria): limpieza SQL en `beforeAll`, acotada estrictamente a
+`sourceReference = BF7F9FB`, no un reset global. Verificado en los
+schemas de Drizzle antes de escribir el DELETE: `memory_sources`,
+`memory_relations` y `memory_embeddings` tienen `ON DELETE CASCADE`
+hacia `memories.id`, así que borrar la `Memory` encontrada por esa
+`sourceReference` es suficiente y no puede tocar datos de otro
+escenario o de otro archivo de test. El test además verifica su propia
+limpieza (`0 MemorySource` para ese sha antes de correr el escenario),
+no confía ciegamente en que el DELETE funcionó.
+
+Explícitamente descartado: `TRUNCATE`, reset de esquema, contenido con
+UUID aleatorio (habría alterado la evidencia real que el escenario
+necesita demostrar), y modificar `CandidateExtractor`/`Promoter`/
+contratos existentes para acomodar el test.
+
+**Alcance estrictamente acotado**: NO 4.9-B/C/D todavía, NO
+`RiskSignal`, NO `ConflictDetector` real, NO CLI/API/cron, NO Fase 5+.
+
+**Estado: pendiente de verificación en el entorno real** — y no basta
+una corrida. Se requieren dos ejecuciones consecutivas de
+`RUN_INTEGRATION_TESTS=true pnpm test:integration`: la primera prueba
+el CREATE contra un Postgres que puede tener residuos de una ejecución
+previa a este cambio; la segunda prueba que la limpieza del `beforeAll`
+deja el mismo estado inicial y el resultado vuelve a ser CREATE, no que
+el candidato se detecta como su propio duplicado — exactamente el bug
+de repetibilidad que motivó el diseño de la limpieza.
+
 ## 15-18. Contratos de dominio
 
 ```text
