@@ -5,9 +5,11 @@ import {
   isRelativeFilePath,
   isValidCodeSymbol,
   isValidDependencyEdge,
+  isValidLiteralMatch,
 } from "./CodeInvariants.js";
 import type { CodeSymbol, CodeSymbolKind } from "./CodeSymbol.js";
 import type { DependencyEdge, DependencyEdgeKind } from "./DependencyEdge.js";
+import type { LiteralMatch } from "./LiteralMatch.js";
 
 describe("isRelativeFilePath", () => {
   it("acepta una ruta relativa canónica", () => {
@@ -150,5 +152,29 @@ describe("isValidDependencyEdge", () => {
 
   it("rechaza una entrada vacía en importedNames", () => {
     expect(isValidDependencyEdge({ ...valid, importedNames: ["a", ""] })).toBe(false);
+  });
+});
+
+describe("isValidLiteralMatch", () => {
+  const valid: LiteralMatch = {
+    filePath: "packages/agent-core/src/ContextBuilder.ts",
+    line: 42,
+    text: "  const context = await builder.build(task);",
+  };
+
+  it("acepta un match válido", () => {
+    expect(isValidLiteralMatch(valid)).toBe(true);
+  });
+
+  it("acepta text vacío — el contrato no exige contenido no vacío", () => {
+    expect(isValidLiteralMatch({ ...valid, text: "" })).toBe(true);
+  });
+
+  it("rechaza filePath no relativo", () => {
+    expect(isValidLiteralMatch({ ...valid, filePath: "/etc/passwd" })).toBe(false);
+  });
+
+  it.each([0, -1, 1.5, Number.NaN])("rechaza line inválido (%s)", (line) => {
+    expect(isValidLiteralMatch({ ...valid, line })).toBe(false);
   });
 });

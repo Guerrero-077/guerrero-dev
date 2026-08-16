@@ -9,6 +9,7 @@
  */
 export * from "./agent/index.js";
 export * from "./analysis/index.js";
+export * from "./code-intelligence/index.js";
 export * from "./common/index.js";
 export * from "./memory/index.js";
 export * from "./project-intelligence/index.js";

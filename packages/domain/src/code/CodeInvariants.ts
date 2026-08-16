@@ -1,5 +1,6 @@
 import type { CodeSymbol, CodeSymbolKind } from "./CodeSymbol.js";
 import type { DependencyEdge, DependencyEdgeKind } from "./DependencyEdge.js";
+import type { LiteralMatch } from "./LiteralMatch.js";
 
 const CODE_SYMBOL_KINDS: readonly CodeSymbolKind[] = [
   "function",
@@ -53,4 +54,10 @@ export function isValidDependencyEdge(edge: DependencyEdge): boolean {
   if (edge.target.trim().length === 0) return false;
   if (!isKnownDependencyEdgeKind(edge.kind)) return false;
   return edge.importedNames.every((name) => name.trim().length > 0);
+}
+
+/** Forma congelada de un LiteralMatch (Fase 6, mapa §7) — `text` puede ser vacío. */
+export function isValidLiteralMatch(match: LiteralMatch): boolean {
+  if (!isRelativeFilePath(match.filePath)) return false;
+  return Number.isInteger(match.line) && match.line >= 1;
 }
