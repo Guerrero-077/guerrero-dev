@@ -1668,6 +1668,74 @@ Siguiente paso: 4.9-C (score insuficiente → sin persistencia) o 4.9-D
 (commit ruidoso → early discard, reusando `a1dc883`) — decisión
 pendiente de qué orden seguir, no autorizado todavía.
 
+## 14p. Fase 4.9-C — score real bajo umbral estricto, sin persistencia
+
+**Orden decidido**: 4.9-C antes que 4.9-D — "columna vertebral primero".
+4.9-A/4.9-B ya demostraron las dos ramas de `Policy` (crear, actualizar
+por duplicado); faltaba la tercera rama crítica del sistema de decisión
+(rechazo por score). 4.9-D, en cambio, ya está conceptualmente
+demostrado en 4.8 con `a1dc883` — en 4.9 solo aporta confirmar que ese
+rechazo temprano se sostiene dentro de la cadena completa, con menos
+riesgo nuevo que 4.9-C.
+
+**Hallazgo antes de escribir código**: releídos `MemoryCandidateScorer`
+y `DeterministicCandidateExtractor` completos. El extractor produce
+`confidence=0.5`/`importance=0.5` como constantes fijas
+(`BASELINE_CONFIDENCE`/`BASELINE_IMPORTANCE`), invariantes en las 5
+reglas — con `sourceType="commit"` (peso 1.0), el score real de
+**cualquier** candidato que el extractor determinista produce es
+siempre `0.6`. No existe ningún commit real que, vía este extractor,
+produzca un score bajo — la variable no depende de la evidencia Git,
+depende de una constante del extractor. Buscar "el commit correcto"
+habría sido buscar algo que no puede existir con esta implementación.
+
+**Decisión**: no fabricar un `MemoryCandidate` a mano ni modificar el
+extractor/scorer. `MemoryCandidateEvaluatorOptions.acceptanceThreshold`
+ya es un parámetro real y existente del contrato de 4.7 — se instancia
+`MemoryCandidateEvaluator` para este escenario con
+`acceptanceThreshold: 0.65` (por encima del score real `0.6`),
+representando una política de aceptación más estricta que un
+despliegue real podría configurar. El default de producción (`0.5`) no
+se toca en ningún lugar. Cadena completa real
+(`Git → GitCommitCollector → CandidateDetectionService → Evaluator con
+umbral estricto → Promoter`) — el candidato sigue siendo el mismo que
+producirían 4.9-A/B, solo cambia la política que lo evalúa.
+
+**Por qué usa la candidata `INTERFACE_IMPL_DI_PATTERN` de `bf7f9fb`, no
+`SCHEMA_PATH`**: `bf7f9fb` produce dos candidatas reales distintas
+(confirmado en 4.8). 4.9-A/4.9-B ya persistieron `Memory`s con el
+contenido `SCHEMA_PATH` y ninguna limpia después de terminar (solo se
+autolimpian antes de su propia siguiente corrida) — con
+`--no-file-parallelism` esos archivos corren antes que este dentro de
+la misma suite, así que para cuando 4.9-C corre, es probable que ya
+exista una `Memory` embebida con contenido `SCHEMA_PATH` en Postgres.
+Usar `INTERFACE_IMPL_DI_PATTERN` — texto real distinto, nunca sembrado
+por otro escenario — evita que el deduplicador real encuentre un
+"duplicado" accidental y contamine la aserción `duplicateOf === null`,
+sin que 4.9-C necesite conocer ni limpiar fixtures de otros archivos.
+
+**Aislamiento explícito de la rama de rechazo**: el test verifica
+`duplicateOf === null` con un guard que lanza un error descriptivo
+("fixture contaminado") si no lo es — 4.9-B ya demostró que
+`duplicateOf !== null` tiene precedencia sobre `accepted` en
+`MemoryCandidatePromoter`, así que este escenario necesita aislar
+específicamente la rama de rechazo por score, no aceptar
+silenciosamente que la rama de duplicado la enmascare.
+
+**Verificación en Postgres, no solo en el valor de retorno**: cuenta
+de `Memory`/`MemorySource` ligadas específicamente al contenido de esta
+candidata (antes/después, sin cambio) más el conteo global de `Memory`
+en toda la base (antes/después, sin cambio) — demuestra que la
+candidata rechazada no dejó ningún rastro, ni siquiera parcial.
+
+**Alcance estrictamente acotado**: NO se modificó `MemoryCandidateScorer`,
+`DeterministicCandidateExtractor`, `MemoryCandidatePromoter` ni ningún
+default de producción — el umbral estricto vive únicamente en la
+instancia de `MemoryCandidateEvaluator` de este test. NO `RiskSignal`,
+NO `ConflictDetector` real, NO CLI/API/cron, NO Fase 5+.
+
+**Estado: pendiente de verificación en el entorno real.**
+
 ## 15-18. Contratos de dominio
 
 ```text
