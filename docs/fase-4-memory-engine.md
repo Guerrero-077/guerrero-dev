@@ -1758,6 +1758,52 @@ Quedan A/B/C de los cinco escenarios acordados. Siguiente paso: 4.9-D
 (commit ruidoso → early discard, reusando `a1dc883`) — no autorizado
 todavía.
 
+## 14q. Fase 4.9-D — commit ruidoso real, sin candidato en absoluto
+
+**Propiedad distinta a 4.9-C, no una repetición**: 4.9-C demuestra "un
+candidato real evaluado no persiste". 4.9-D demuestra algo más fuerte
+— "un commit ruidoso nunca produce un candidato en absoluto", así que
+una composición correcta del pipeline no tiene nada que pasarle a
+`MemoryCandidateEvaluator`/`MemoryCandidatePromoter`. No hace falta un
+spy que registre si esas etapas fueron invocadas: el invariante
+documentado de `CandidateExtractionResult` (`outcome === "rejected"`
+implica `candidate === null`) ya lo garantiza — no existe forma de
+construir una llamada real a `evaluate()`/`promote()` sin un
+`MemoryCandidate`. Decisión explícita de diseño, no una omisión: se
+descartó meter spies artificiales para demostrar una consecuencia que
+el propio contrato ya determina.
+
+Reusa `a1dc883` — mismo commit real ya verificado en 4.8
+(`DeterministicCommitNoiseFilter`, golden dataset) y en
+`candidate-detection-pipeline.test.ts`: solo toca `.gitignore` y
+`*.tsbuildinfo`. Ningún fixture nuevo.
+
+**Sin limpieza previa en `beforeAll`**: a diferencia de 4.9-A/B/C, este
+escenario nunca persiste nada, así que no hay estado propio que dejar
+entre corridas. No depende de Ollama — esta rama del pipeline nunca
+llega a `MemoryCandidateDeduplicator`.
+
+**Verificación**: resultado de detección exactamente
+`[{ outcome: "rejected", candidate: null, riskSignals: [], reason: ... }]`,
+y conteo global de `Memory` en Postgres idéntico antes/después.
+
+**Alcance estrictamente acotado**: NO se modificó ningún contrato ni
+implementación de producción. NO `RiskSignal`, NO `ConflictDetector`
+real, NO CLI/API/cron, NO Fase 5+.
+
+**Estado: pendiente de verificación en el entorno real.**
+
+Con 4.9-D, los cinco escenarios acordados de Fase 4.9 quedan cubiertos
+o explícitamente diferidos:
+
+```text
+4.9-A  Create                         ✅
+4.9-B  Duplicate / Update             ✅
+4.9-C  Low score / No persistence     ✅
+4.9-D  Noise / Early discard          ⏳ (este commit, pendiente de verificación real)
+4.9-E  Conflict                        ⏸ fuera de alcance (ConflictDetector Noop)
+```
+
 ## 15-18. Contratos de dominio
 
 ```text
