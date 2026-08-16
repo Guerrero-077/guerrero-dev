@@ -1209,6 +1209,78 @@ que las reglas deterministas correctamente declinan resolver
 (`outcome: []` — 11 de los 18 casos verificados, ~mitad del dataset
 completo de 23).
 
+## 14k. Commit Collector: decisión arquitectónica nueva, no especificada originalmente
+
+Auditoría de Fase 4.8 (`docs/fase-a-auditoria.md`, revisión adicional
+post-4.8.4) encontró un hueco no reconocido hasta ese momento: ningún
+puerto ni implementación traducía un commit real de Git a
+`CommitSnapshot` — el único rastro era el nombre "Commit Collector" en
+el JSDoc de `CommitSnapshot.ts`. Sin él, `DeterministicCommitAnalyzer`/
+`DeterministicCommitNoiseFilter`/`DeterministicCandidateExtractor`
+(4.8.x-4.8.4) solo podían probarse con `CommitSnapshot`/`CommitSignal`
+construidos a mano — nunca contra un commit real de punta a punta.
+Confirmado explícitamente antes de escribir código: esto **no** era un
+requisito que el diseño original de 4.8 hubiera dejado pendiente por
+escrito, es una decisión arquitectónica nueva para cerrar un vacío real.
+
+**`ICommitCollector`** (`application/memory/ports`): puerto angosto,
+`collect(sha): Promise<CommitSnapshot>`, mismo criterio que
+`IGitHistorySource` — una sola responsabilidad, sin decidir ruido,
+riesgo, ni candidatas.
+
+**`GitCommitCollector`** (`infrastructure/git`), tres invocaciones de
+Git separadas por responsabilidad:
+
+```text
+git show -s --format=%H␟%an␟%aI␟%B <sha>   -> metadata + mensaje completo
+git show --no-color --format= <sha>         -> diff (format vacío suprime el header)
+git show --no-color --format= --name-only <sha> -> changedFiles
+```
+
+`␟` = ASCII 0x1F (unit separator), elegido para no colisionar con texto
+real de autor/mensaje — mismo criterio anti-parsing-optimista que ya
+costó las magnitudes truncadas del golden dataset (§14i).
+
+**Dos bugs reales encontrados corriendo la integration test contra Git
+en Windows** (no reproducibles en Linux, corregidos en la misma
+iteración, no ocultados):
+
+1. El mensaje llegaba con un `\r` colgante. Verificado con `xxd` contra
+   Git real: `git show -s --format=...` deja **dos** saltos de línea sin
+   contenido real al final (el propio `%B`, que Git normaliza a un único
+   `\n` al commitear — probado creando un commit real con
+   `"subject\n\n\n\n"`, quedó guardado como `"subject\n"` — y el
+   separador que el comando agrega después de todo el bloque
+   formateado), y en Windows ese segundo salto llega como `\r\n`. Fix:
+   normaliza `\r\n` -> `\n` y recorta *todos* los saltos de línea
+   finales, no uno.
+2. `EBUSY` de Windows al borrar un directorio temporal justo después de
+   un `execFile("git", ...)` corrido adentro — condición de carrera del
+   SO, no del código. Fix: `fs.rm` con `maxRetries`/`retryDelay`.
+
+**Alcance estrictamente acotado** (acordado antes de implementar): NO
+`RiskSignal`, NO wiring a `CandidateDetectionService`/CLI/API/cron, NO
+LLM, NO Fase 5+. `CommitSnapshot` no se modificó.
+
+**Estado:**
+
+```text
+☑ ICommitCollector (puerto)
+☑ GitCommitCollector (adapter real, execFile, mismo patrón que GitHistorySource)
+☑ parseCommitMetadata / parseChangedFiles (funciones puras) — 15 tests unitarios
+☑ integration tests contra Git real — 6/6 (commit simple, múltiples archivos,
+  caracteres especiales reales, commit_not_found, not_a_repository,
+  commit --allow-empty en repo temporal desechable)
+☑ build + typecheck estricto + lint + prettier — verificados en Windows real
+  (dos rondas de bugs reales encontrados y corregidos, ver arriba)
+```
+
+**Commit Collector — CERRADO**, con el mismo criterio que el resto de
+Fase 4: no se dio por cerrado hasta pasar contra Git real en el entorno
+de desarrollo real, no solo build/typecheck. Commits:
+`1bb42f3` (`feat(memory): add git commit collector`), `3ebc92a` y
+`1dbcb79` (fixes de la verificación en Windows real).
+
 ## 15-18. Contratos de dominio
 
 ```text
