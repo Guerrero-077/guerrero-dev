@@ -20,7 +20,11 @@ describe("MemoryCandidateScorer", () => {
     const scorer = new MemoryCandidateScorer();
 
     const { score } = scorer.score(
-      buildCandidate({ confidence: 0.8, importance: 0.6, source: { sourceType: "conversation", sourceReference: "x" } }),
+      buildCandidate({
+        confidence: 0.8,
+        importance: 0.6,
+        source: { sourceType: "conversation", sourceReference: "x" },
+      }),
     );
 
     // 0.8*0.5 + 0.6*0.3 + 0.7*0.2 = 0.4 + 0.18 + 0.14 = 0.72
@@ -31,7 +35,11 @@ describe("MemoryCandidateScorer", () => {
     const scorer = new MemoryCandidateScorer();
 
     const { score } = scorer.score(
-      buildCandidate({ confidence: 1, importance: 1, source: { sourceType: "repository", sourceReference: "x" } }),
+      buildCandidate({
+        confidence: 1,
+        importance: 1,
+        source: { sourceType: "repository", sourceReference: "x" },
+      }),
     );
 
     expect(score).toBeCloseTo(1, 10);

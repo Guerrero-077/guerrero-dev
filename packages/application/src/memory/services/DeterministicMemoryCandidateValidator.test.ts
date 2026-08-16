@@ -47,9 +47,9 @@ describe("DeterministicMemoryCandidateValidator", () => {
   });
 
   it("lanza si scope global tiene projectId", () => {
-    expect(() =>
-      validator.validate(buildCandidate({ scope: "global", projectId: "project-1" })),
-    ).toThrow(/scope "global" inconsistente con projectId "project-1"/);
+    expect(() => validator.validate(buildCandidate({ scope: "global", projectId: "project-1" }))).toThrow(
+      /scope "global" inconsistente con projectId "project-1"/,
+    );
   });
 
   it("lanza si scope project no tiene projectId", () => {
@@ -65,8 +65,8 @@ describe("DeterministicMemoryCandidateValidator", () => {
   });
 
   it("valida confidence antes que importance (primer invariante que falla)", () => {
-    expect(() =>
-      validator.validate(buildCandidate({ confidence: 2, importance: -5 })),
-    ).toThrow(/confidence fuera de rango/);
+    expect(() => validator.validate(buildCandidate({ confidence: 2, importance: -5 }))).toThrow(
+      /confidence fuera de rango/,
+    );
   });
 });

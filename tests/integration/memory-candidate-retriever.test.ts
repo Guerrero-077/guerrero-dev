@@ -64,6 +64,7 @@ describe.skipIf(!RUN)("DrizzleMemoryCandidateRetriever (integration)", () => {
   let memoryRepo: DrizzleMemoryRepository;
   let embeddingRepo: DrizzleMemoryEmbeddingRepository;
   let candidateRetriever: DrizzleMemoryCandidateRetriever;
+  let projectRepo: DrizzleProjectRepository;
 
   async function createMemoryWithEmbedding(alpha: number, overrides: Partial<Memory> = {}): Promise<Memory> {
     const memory = await memoryRepo.create(buildMemory(overrides));
@@ -87,6 +88,7 @@ describe.skipIf(!RUN)("DrizzleMemoryCandidateRetriever (integration)", () => {
     memoryRepo = new DrizzleMemoryRepository(db);
     embeddingRepo = new DrizzleMemoryEmbeddingRepository(db);
     candidateRetriever = new DrizzleMemoryCandidateRetriever(db);
+    projectRepo = new DrizzleProjectRepository(db);
   });
 
   afterAll(async () => {
@@ -94,11 +96,36 @@ describe.skipIf(!RUN)("DrizzleMemoryCandidateRetriever (integration)", () => {
   });
 
   it("ordena candidatos por similitud coseno descendente, con semanticSimilarity ≈ alpha", async () => {
-    const low = await createMemoryWithEmbedding(0.1, { content: "low" });
-    const high = await createMemoryWithEmbedding(0.95, { content: "high" });
-    const mid = await createMemoryWithEmbedding(0.5, { content: "mid" });
+    // Test aislado en su propio proyecto (Fase 4.7 §14e-bis, bug encontrado
+    // al correr la suite completa contra Postgres real): sin `projectId`,
+    // esta consulta compite con TODAS las memorias `scope: "global"` que
+    // insertan los demás archivos de tests/integration en el mismo run
+    // (vitest corre archivos en paralelo contra la misma base real) —
+    // `limit: 10` puede dejar afuera a `mid` si otros archivos insertaron
+    // más de 10 memorias con embeddings global antes de que esta consulta
+    // corra. El resto de tests de este archivo comparten el mismo problema
+    // en teoría, pero no lo manifestaban porque no aseveran ausencia/orden
+    // exacto sobre el pool completo — este es el único que sí depende de
+    // que el pool esté acotado a exactamente lo que el test creó.
+    const now = new Date();
+    const project = await projectRepo.create({
+      id: randomUUID(),
+      name: "candidate-retriever-order-test",
+      path: `/tmp/guerrero-candidate-retriever-order-test-${Date.now()}`,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const projectOverrides = { scope: "project" as const, projectId: project.id };
 
-    const candidates = await candidateRetriever.findCandidates({ embedding: QUERY_VECTOR, limit: 10 });
+    const low = await createMemoryWithEmbedding(0.1, { ...projectOverrides, content: "low" });
+    const high = await createMemoryWithEmbedding(0.95, { ...projectOverrides, content: "high" });
+    const mid = await createMemoryWithEmbedding(0.5, { ...projectOverrides, content: "mid" });
+
+    const candidates = await candidateRetriever.findCandidates({
+      embedding: QUERY_VECTOR,
+      projectId: project.id,
+      limit: 10,
+    });
 
     const byId = new Map(candidates.map((c) => [c.memory.id, c]));
     expect(byId.get(high.id)?.semanticSimilarity).toBeCloseTo(0.95, 2);
@@ -123,7 +150,6 @@ describe.skipIf(!RUN)("DrizzleMemoryCandidateRetriever (integration)", () => {
   });
 
   it("con projectId filtra en SQL: solo trae memorias de ese proyecto", async () => {
-    const projectRepo = new DrizzleProjectRepository(createDrizzleClient(pool));
     const now = new Date();
     const project = await projectRepo.create({
       id: randomUUID(),

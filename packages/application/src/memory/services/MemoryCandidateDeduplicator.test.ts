@@ -110,7 +110,10 @@ describe("MemoryCandidateDeduplicator", () => {
     const { retriever } = fakeCandidateRetriever([
       // El más parecido es una "decision", no cuenta como duplicado de un "fact".
       buildSearchCandidate({ memory: buildMemory({ type: "decision" }), semanticSimilarity: 0.99 }),
-      buildSearchCandidate({ memory: buildMemory({ id: factMemoryId, type: "fact" }), semanticSimilarity: 0.92 }),
+      buildSearchCandidate({
+        memory: buildMemory({ id: factMemoryId, type: "fact" }),
+        semanticSimilarity: 0.92,
+      }),
     ]);
     const deduplicator = new MemoryCandidateDeduplicator(embeddingProvider, retriever);
 
@@ -139,9 +142,7 @@ describe("MemoryCandidateDeduplicator", () => {
     const { retriever, findCandidates } = fakeCandidateRetriever([]);
     const deduplicator = new MemoryCandidateDeduplicator(embeddingProvider, retriever);
 
-    await deduplicator.findDuplicate(
-      buildCandidate({ scope: "project", projectId: "project-1" }),
-    );
+    await deduplicator.findDuplicate(buildCandidate({ scope: "project", projectId: "project-1" }));
 
     expect(findCandidates.mock.calls[0]?.[0]?.projectId).toBe("project-1");
   });
