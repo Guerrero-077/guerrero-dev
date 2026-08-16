@@ -1281,6 +1281,65 @@ de desarrollo real, no solo build/typecheck. Commits:
 `1bb42f3` (`feat(memory): add git commit collector`), `3ebc92a` y
 `1dbcb79` (fixes de la verificación en Windows real).
 
+## 14l. CandidateDetectionService: tests propios + validación real de punta a punta (Commit 2)
+
+Auditoría de Fase 4.8 tras cerrar el Commit Collector (§14k) encontró un
+segundo hueco: `CandidateDetectionService` orquesta `ICommitAnalyzer` →
+`ICommitNoiseFilter` → `ICandidateExtractor` correctamente en el código,
+pero no tenía ningún test propio (`CandidateDetectionService.test.ts` no
+existía), y ningún punto del código conectaba
+`GitCommitCollector` → `CandidateDetectionService` — la cadena completa
+nunca había corrido, ni una vez, contra Git real.
+
+Decisión explícita (antes de escribir código): no implementar
+`RiskSignal` producers todavía, aunque fuera el hueco visible más obvio.
+`RiskSignal` es solo un tipo — `DeterministicCandidateExtractor` ya lo
+referencia en su contrato pero nunca lo produce (`riskSignals: []`
+siempre) — construir un producer ahora habría agregado una dimensión
+nueva sobre un orquestador todavía sin probar. El objetivo real de Fase
+4.8 en este punto es que la detección de candidatas sea confiable desde
+Git real, no ampliar el modelo de riesgo.
+
+**Commit 2 — dos piezas, un mismo objetivo verificable:**
+
+1. `CandidateDetectionService.test.ts` (18 tests, dobles de test
+   "tontos" para `ICommitAnalyzer`/`ICommitNoiseFilter`/`ICandidateExtractor`,
+   mismo criterio que `fakeGitHistorySource` en
+   `DeterministicCommitAnalyzer.test.ts`): corte temprano cuando el
+   noise filter descarta, propagación exacta del `CommitSignal` entre
+   analyzer → noise filter → extractor, verificación por conteo de
+   llamadas de que el extractor NO se ejecuta si `discard: true`, y que
+   los resultados del extractor se devuelven sin transformar.
+2. `tests/integration/candidate-detection-pipeline.test.ts`: cadena
+   completa contra infraestructura real, ningún `CommitSnapshot`
+   hardcodeado —
+
+   ```text
+   Git real -> GitCommitCollector -> CommitSnapshot ->
+   DeterministicCommitAnalyzer (+ GitHistorySource real) -> CommitSignal ->
+   DeterministicCommitNoiseFilter -> DeterministicCandidateExtractor ->
+   CandidateDetectionService.detect()
+   ```
+
+   Dos commits reales ya verificados en tests anteriores (no se
+   introduce evidencia nueva sin confirmar): `bf7f9fb` (21 archivos
+   reales, dispara `SCHEMA_PATH` + `INTERFACE_IMPL_DI_PATTERN` — mismo
+   commit ya usado en `git-commit-collector.test.ts` y
+   `git-history-source.test.ts`) y `a1dc883` (solo `.gitignore` +
+   `*.tsbuildinfo`, caso real del golden dataset y del docstring de
+   `DeterministicCommitNoiseFilter`, confirma que el pipeline corta
+   antes del extractor sin producir ninguna candidata).
+
+**Alcance estrictamente acotado** (acordado antes de implementar): NO
+`RiskSignal` producers, NO wiring a CLI/API/cron, NO LLM extraction, NO
+Fase 4.9, NO Fase 5+. Ningún contrato existente (`CommitSnapshot`,
+`CommitSignal`, `CandidateExtractionResult`, `RiskSignal`) se modificó.
+
+**Estado:** pendiente de verificación en el entorno real de Santiago
+(build/typecheck/tests/lint/format) antes de declarar cerrado — mismo
+criterio que el Commit Collector: no se cierra solo porque pase en el
+sandbox.
+
 ## 15-18. Contratos de dominio
 
 ```text
