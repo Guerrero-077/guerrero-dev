@@ -9,4 +9,5 @@ export * from "./IMemoryRepository.js";
 export * from "./IMemorySourceRepository.js";
 export * from "./IModelRegistry.js";
 export * from "./IPolicyEngine.js";
+export * from "./IProjectIntelligenceRepository.js";
 export * from "./IProjectRepository.js";

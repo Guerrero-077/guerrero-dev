@@ -5,6 +5,7 @@ export * from "./repositories/DrizzleMemoryEmbeddingRepository.js";
 export * from "./repositories/DrizzleMemoryRelationRepository.js";
 export * from "./repositories/DrizzleMemoryRepository.js";
 export * from "./repositories/DrizzleMemorySourceRepository.js";
+export * from "./repositories/DrizzleProjectIntelligenceRepository.js";
 export * from "./repositories/DrizzleProjectRepository.js";
 export * from "./promotion/index.js";
 export * from "./retrieval/index.js";
