@@ -1734,7 +1734,29 @@ default de producción — el umbral estricto vive únicamente en la
 instancia de `MemoryCandidateEvaluator` de este test. NO `RiskSignal`,
 NO `ConflictDetector` real, NO CLI/API/cron, NO Fase 5+.
 
-**Estado: pendiente de verificación en el entorno real.**
+**Estado — verificado en el entorno real, dos ejecuciones consecutivas
+de `pnpm test:integration`:**
+
+```text
+☑ build (11 proyectos)
+☑ typecheck estricto
+☑ 200/200 tests unitarios
+☑ 1ª corrida test:integration — 47/47 (12 archivos)
+☑ 2ª corrida test:integration — 47/47 de nuevo
+☑ lint limpio
+☑ format:check limpio
+```
+
+**Fase 4.9-C — CERRADA.** Tercera prueba de que el Memory Engine
+funciona como sistema: un candidato real, evaluado con una política de
+aceptación configurada más estricta que el default de producción, es
+rechazado sin dejar ningún rastro en Postgres — ni una `Memory`
+parcial, ni un `MemorySource` huérfano. Commit: `7d6a728`
+(`test(memory): Fase 4.9-C - score real bajo umbral estricto, sin persistencia`).
+
+Quedan A/B/C de los cinco escenarios acordados. Siguiente paso: 4.9-D
+(commit ruidoso → early discard, reusando `a1dc883`) — no autorizado
+todavía.
 
 ## 15-18. Contratos de dominio
 
