@@ -803,14 +803,19 @@ incremento pendiente sobre Candidate Engine.
 **Estado tras este cierre:**
 
 ```text
-☑ DeterministicMemoryCandidateValidator — implementación real, 8 tests unitarios
+☑ DeterministicMemoryCandidateValidator — implementación real, 9 tests unitarios
 ☑ MemoryCandidateScorer — implementación real con pesos documentados arriba, 5 tests unitarios
-☑ MemoryCandidateDeduplicator — implementación real (reusa retrieval de 4.6), 9 tests unitarios
+☑ MemoryCandidateDeduplicator — implementación real (reusa retrieval de 4.6), 8 tests unitarios
 ☑ NoopMemoryConflictDetector — placeholder consciente y documentado, 2 tests unitarios
-☐ Verificación end-to-end contra PostgreSQL+Ollama real — pendiente de
-  correr en el entorno Windows real del desarrollador (el sandbox de
-  esta sesión no tuvo acceso al registry de pnpm para instalar
-  dependencias, misma limitación ya declarada en Fase 4.4/A)
+☑ build + typecheck estricto + suite completa — verificado en el entorno
+  Windows real del desarrollador (no en este sandbox, que no tuvo acceso
+  al registry de pnpm): 176/176 tests pasan (24 nuevos de esta sección,
+  0 regresiones), 41 tests de integración/e2e correctamente `skipped`
+  (requieren PostgreSQL/Ollama reales corriendo, no evaluados en este
+  incremento)
+☐ Verificación end-to-end contra PostgreSQL+Ollama real (`RUN_INTEGRATION_TESTS=true
+  pnpm test:integration`) — pendiente, requiere `docker compose up -d postgres`
+  y Ollama corriendo
 ☐ ConflictDetector real — deferido, ver arriba
 ```
 
