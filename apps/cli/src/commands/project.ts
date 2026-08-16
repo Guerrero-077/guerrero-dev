@@ -26,6 +26,27 @@ export function registerProjectCommands(program: Command): void {
     });
 
   project
+    .command("get <id>")
+    .description("Muestra un proyecto por id")
+    .action(async (id: string) => {
+      const ctx = createCliContext();
+      try {
+        const p = await ctx.getProject.execute(id);
+        if (!p) {
+          console.error(`✗ Proyecto no encontrado: ${id}`);
+          process.exitCode = 1;
+          return;
+        }
+        console.log(`${p.id}  ${p.name}  ${p.path}`);
+      } catch (err) {
+        console.error(`✗ ${err instanceof Error ? err.message : String(err)}`);
+        process.exitCode = 1;
+      } finally {
+        await ctx.dispose();
+      }
+    });
+
+  project
     .command("list")
     .description("Lista los proyectos registrados")
     .action(async () => {

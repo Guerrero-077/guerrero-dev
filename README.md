@@ -57,6 +57,7 @@ node apps/cli/dist/index.js doctor
 ```bash
 node apps/cli/dist/index.js project add GESCOMPH D:\Projects\GESCOMPH
 node apps/cli/dist/index.js project list
+node apps/cli/dist/index.js project get <id>
 ```
 
 O vía la API (`node apps/api/dist/index.js`, en otra terminal):
