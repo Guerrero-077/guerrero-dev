@@ -1517,6 +1517,72 @@ candidato semánticamente casi idéntico a una `Memory` ya persistida sin
 introducir contenido artificial que distorsione la evidencia real —
 mismo criterio que 4.9-A. No autorizado todavía.
 
+## 14o. Fase 4.9-B — candidato real reconocido como duplicado, rama de actualización real
+
+**`tests/integration/candidate-duplicate-promotion-e2e.test.ts`**:
+segundo escenario end-to-end. Reusa `bf7f9fb` (mismo commit de
+4.8/4.9-A) para obtener un candidato real, y demuestra que
+`MemoryCandidateDeduplicator` real (Ollama + `DrizzleMemoryCandidateRetriever`
++ pgvector, sin ningún mock) lo reconoce como duplicado de una `Memory`
+ya existente, y que `MemoryCandidatePromoter` ejecuta `action: "updated"`
+sobre la misma fila — no crea una segunda `Memory`.
+
+**Gap real encontrado durante el diseño, antes de escribir código**:
+`IMemoryPromotionUnitOfWork`/`MemoryPromotionRepositories` (Fase 4.7) no
+exponen `IMemoryEmbeddingRepository` — `MemoryCandidatePromoter` nunca
+escribe en `memory_embeddings` al crear una `Memory`. Confirmado leyendo
+el contrato completo antes de asumir nada. Consecuencia real: tal como
+está implementado hoy, **una `Memory` recién promovida por el propio
+pipeline nunca sería encontrada por el deduplicador** (`DrizzleMemoryCandidateRetriever`
+hace `INNER JOIN memory_embeddings`), sin importar cuán idéntica fuera
+a un candidato nuevo. Categorizado explícitamente como "contrato
+insuficiente", no "bug de implementación existente" (nadie prometió
+ese comportamiento) ni "nueva capacidad" — decisión tomada junto con
+Santiago antes de escribir el test: **no se corrige en este commit**,
+queda documentado como decisión pendiente sobre el contrato de 4.7.
+
+**Por qué el fixture siembra `Memory` + `MemoryEmbedding` + `MemorySource`
+directamente en Postgres, en vez de promoverlos vía el pipeline** (que
+sería "más real" si el gap de arriba no existiera): representa
+fielmente el estado inicial legítimo de producción — "una memoria que
+ya existía y ya estaba indexada" — sin fingir un paso de promoción que
+el sistema no ejecuta todavía. El `content` sembrado es exactamente el
+que produce `DeterministicCandidateExtractor` para `bf7f9fb` en
+runtime (nunca hardcodeado), y el embedding sembrado es un vector real
+de Ollama para ese mismo texto.
+
+**Aislamiento de dos entidades**, no solo una (a diferencia de 4.9-A):
+el `MemorySource` sembrado usa `sourceReference: "fixture:4.9-B:bf7f9fb"`,
+deliberadamente distinto del SHA real (`bf7f9fb...`) que produce el
+`MemorySource` nuevo agregado por la promoción real — así el test
+distingue inequívocamente, después de correr el pipeline, cuál
+`MemorySource` ya existía y cuál demuestra que el pipeline funcionó.
+Limpieza SQL en `beforeAll` acotada a ambas `sourceReference`
+(`IN ($1, $2)`), mismo criterio de FKs `ON DELETE CASCADE` que 4.9-A.
+
+**Verificaciones**: `evaluation.duplicateOf === seededMemory.id`
+(decidido por Ollama + pgvector reales, nunca asignado a mano),
+`promotion.action === "updated"`, `promotion.memoryId === seededMemory.id`
+(nunca una segunda `Memory`), `confidence`/`importance` persistidos
+iguales a los del candidato evaluado (0.5/0.5) y distintos del seed
+(0.3/0.3 — confirma que el UPDATE ocurrió, no que coincidía por
+casualidad), `lastVerifiedAt`/`updatedAt` posteriores al instante justo
+antes de promover (sin asertar timestamps exactos — precaución
+explícita de Santiago, evita asserts frágiles), y exactamente un
+`MemorySource` nuevo con `sourceReference = bf7f9fb` agregado a los
+dos que ya existían para esa `Memory`.
+
+**Alcance estrictamente acotado**: NO se modificó `MemoryCandidatePromoter`,
+`IMemoryPromotionUnitOfWork`, `MemoryPromotionRepositories` ni
+`IMemoryEmbeddingRepository` — el gap de embeddings en promoción queda
+documentado arriba, no resuelto. NO 4.9-C/D todavía, NO `RiskSignal`,
+NO `ConflictDetector` real, NO CLI/API/cron, NO Fase 5+.
+
+**Estado: pendiente de verificación en el entorno real** (build,
+typecheck, tests, `test:integration`, lint, format), mismo criterio que
+el resto de Fase 4 — no se declara cerrado hasta pasar contra Ollama y
+PostgreSQL reales en la máquina de Santiago.
+
 ## 15-18. Contratos de dominio
 
 ```text
