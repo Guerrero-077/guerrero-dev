@@ -1791,7 +1791,26 @@ y conteo global de `Memory` en Postgres idéntico antes/después.
 implementación de producción. NO `RiskSignal`, NO `ConflictDetector`
 real, NO CLI/API/cron, NO Fase 5+.
 
-**Estado: pendiente de verificación en el entorno real.**
+**Estado de Fase 4.9-D:**
+
+```text
+☑ candidate-noise-discard-e2e.test.ts — a1dc883 real, resultado exactamente
+  [{ outcome: "rejected", candidate: null, riskSignals: [], reason contiene
+  "tsbuildinfo" }], conteo global de memories idéntico antes/después
+☑ build + typecheck estricto + suite unitaria completa (200/200, 0
+  regresiones) — verificado en el entorno Windows real del desarrollador
+☑ verificación end-to-end contra PostgreSQL+Ollama real —
+  `RUN_INTEGRATION_TESTS=true pnpm test:integration` (--no-file-parallelism):
+  13 archivos, 48/48 passed, corrido TRES veces consecutivas sin residuo ni
+  contaminación entre corridas (mismo criterio de repetibilidad que 4.9-A/B/C)
+☑ pnpm lint + pnpm format:check — limpio
+☑ commit aislado (c67ef5e), pusheado a origin/main
+```
+
+**Fase 4.9-D — CERRADA.** Verificado contra Git+PostgreSQL reales, sin
+mocks, con tres corridas consecutivas de `test:integration` confirmando
+repetibilidad. No se modificó ningún contrato ni implementación de
+producción.
 
 Con 4.9-D, los cinco escenarios acordados de Fase 4.9 quedan cubiertos
 o explícitamente diferidos:
@@ -1800,7 +1819,7 @@ o explícitamente diferidos:
 4.9-A  Create                         ✅
 4.9-B  Duplicate / Update             ✅
 4.9-C  Low score / No persistence     ✅
-4.9-D  Noise / Early discard          ⏳ (este commit, pendiente de verificación real)
+4.9-D  Noise / Early discard          ✅
 4.9-E  Conflict                        ⏸ fuera de alcance (ConflictDetector Noop)
 ```
 
