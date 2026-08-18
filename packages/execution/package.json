@@ -20,7 +20,9 @@
   "dependencies": {
     "@guerrero-dev/application": "workspace:*",
     "@guerrero-dev/domain": "workspace:*",
-    "@guerrero-dev/shared": "workspace:*"
+    "@guerrero-dev/shared": "workspace:*",
+    "@opencode-ai/sdk": "^1.18.18",
+    "opencode-ai": "^1.18.18"
   },
   "devDependencies": {
     "typescript": "^5.7.2",

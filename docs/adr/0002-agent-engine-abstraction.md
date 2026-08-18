@@ -1,8 +1,16 @@
 # ADR 0002 — Agent Engine Abstraction
 
-**Estado:** Aceptado
+**Estado:** Aceptado (parcialmente superseded — ver nota abajo)
 **Fecha:** 2026-08-15
 **Contexto detallado:** [`docs/fase-3-foundation.md`](../fase-3-foundation.md) §5-8, [`docs/fase-3-implementacion.md`](../fase-3-implementacion.md)
+
+> **Nota (Fase 5.5, 2026-08-18):** el orden Cline-primero/OpenCode-secundario
+> de este ADR se decidió sin inspeccionar los paquetes reales de npm. La
+> auditoría de Fase 5.5 sí los inspeccionó y encontró evidencia que revierte
+> ese orden — ver [ADR 0003](./0003-opencode-primero.md). El resto de este
+> documento (el puerto `IExecutionEngine`, la independencia de
+> `PolicyEvaluator`, las alternativas rechazadas) sigue vigente sin cambios;
+> solo el orden Cline/OpenCode queda superseded.
 
 ## Contexto
 
