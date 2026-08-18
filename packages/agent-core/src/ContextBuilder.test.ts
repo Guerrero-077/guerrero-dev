@@ -25,6 +25,8 @@ function buildTask(overrides: Partial<AgentTask> = {}): AgentTask {
     id: "task-1",
     sessionId: "session-1",
     projectId: "project-1",
+    userId: "user-1",
+    projectRootPath: "/tmp/project-1",
     instruction: "arregla el bug en el login",
     modelName: "test-model",
     ...overrides,
