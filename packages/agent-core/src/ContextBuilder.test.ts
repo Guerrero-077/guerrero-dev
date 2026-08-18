@@ -1,5 +1,9 @@
 import type { AgentTask, ProjectProfile } from "@guerrero-dev/domain";
-import type { IProjectIntelligenceProvider } from "@guerrero-dev/application";
+import type {
+  IMemoryRetriever,
+  IProjectIntelligenceProvider,
+  MemorySearchResult,
+} from "@guerrero-dev/application";
 import { describe, expect, it } from "vitest";
 import { ContextBuilder } from "./ContextBuilder.js";
 
@@ -17,6 +21,45 @@ function fakeProvider(result: ProjectProfile | null): {
       },
     },
     calls,
+  };
+}
+
+/** Mismo criterio "tonto" que `fakeProvider` — devuelve exactamente lo configurado, registra sus llamadas. */
+function fakeMemoryRetriever(result: MemorySearchResult[] = []): {
+  retriever: IMemoryRetriever;
+  calls: unknown[];
+} {
+  const calls: unknown[] = [];
+  return {
+    retriever: {
+      async search(query) {
+        calls.push(query);
+        return result;
+      },
+    },
+    calls,
+  };
+}
+
+function buildMemoryResult(overrides: Partial<MemorySearchResult> = {}): MemorySearchResult {
+  return {
+    memory: {
+      id: "memory-1",
+      projectId: "project-1",
+      scope: "project",
+      type: "fact",
+      content: "El proyecto usa pnpm workspaces.",
+      status: "active",
+      confidence: 0.9,
+      importance: 0.5,
+      createdAt: new Date("2026-08-16T00:00:00.000Z"),
+      updatedAt: new Date("2026-08-16T00:00:00.000Z"),
+      lastVerifiedAt: null,
+      expiresAt: null,
+    },
+    score: 0.8,
+    reasons: ["similitud semántica alta"],
+    ...overrides,
   };
 }
 
@@ -51,7 +94,8 @@ function buildProfile(overrides: Partial<ProjectProfile> = {}): ProjectProfile {
 describe("ContextBuilder — perfil existente", () => {
   it("consulta getProjectProfile con exactamente task.projectId", async () => {
     const { provider, calls } = fakeProvider(buildProfile());
-    const builder = new ContextBuilder(provider);
+    const { retriever } = fakeMemoryRetriever();
+    const builder = new ContextBuilder(provider, retriever);
 
     await builder.build(buildTask({ projectId: "proyecto-especifico" }));
 
@@ -83,7 +127,8 @@ describe("ContextBuilder — perfil existente", () => {
       ],
     });
     const { provider } = fakeProvider(profile);
-    const builder = new ContextBuilder(provider);
+    const { retriever } = fakeMemoryRetriever();
+    const builder = new ContextBuilder(provider, retriever);
 
     const context = await builder.build(buildTask());
 
@@ -98,7 +143,8 @@ describe("ContextBuilder — perfil existente", () => {
       ],
     });
     const { provider } = fakeProvider(profile);
-    const builder = new ContextBuilder(provider);
+    const { retriever } = fakeMemoryRetriever();
+    const builder = new ContextBuilder(provider, retriever);
 
     const context = await builder.build(buildTask());
 
@@ -107,7 +153,8 @@ describe("ContextBuilder — perfil existente", () => {
 
   it("messages sigue siendo exactamente [task.instruction]", async () => {
     const { provider } = fakeProvider(buildProfile());
-    const builder = new ContextBuilder(provider);
+    const { retriever } = fakeMemoryRetriever();
+    const builder = new ContextBuilder(provider, retriever);
 
     const context = await builder.build(buildTask({ instruction: "revisa el PR #42" }));
 
@@ -120,7 +167,8 @@ describe("ContextBuilder — perfil existente", () => {
       components: [{ name: "api", path: "apps/api", type: "app" }],
     });
     const { provider } = fakeProvider(profile);
-    const builder = new ContextBuilder(provider);
+    const { retriever } = fakeMemoryRetriever();
+    const builder = new ContextBuilder(provider, retriever);
 
     const context = await builder.build(buildTask());
 
@@ -141,7 +189,8 @@ describe("ContextBuilder — perfil existente", () => {
       components: [],
     });
     const { provider } = fakeProvider(profile);
-    const builder = new ContextBuilder(provider);
+    const { retriever } = fakeMemoryRetriever();
+    const builder = new ContextBuilder(provider, retriever);
 
     const context = await builder.build(buildTask());
 
@@ -173,7 +222,8 @@ describe("ContextBuilder — perfil existente", () => {
     const componentsRef = profile.components;
 
     const { provider } = fakeProvider(profile);
-    const builder = new ContextBuilder(provider);
+    const { retriever } = fakeMemoryRetriever();
+    const builder = new ContextBuilder(provider, retriever);
     await builder.build(buildTask());
 
     expect(profile.technologies).toBe(technologiesRef);
@@ -186,7 +236,8 @@ describe("ContextBuilder — perfil existente", () => {
 describe("ContextBuilder — perfil inexistente", () => {
   it("null produce exactamente el systemPrompt base, sin secciones agregadas", async () => {
     const { provider } = fakeProvider(null);
-    const builder = new ContextBuilder(provider);
+    const { retriever } = fakeMemoryRetriever();
+    const builder = new ContextBuilder(provider, retriever);
 
     const context = await builder.build(buildTask({ projectId: "proyecto-sin-escanear" }));
 
@@ -197,11 +248,60 @@ describe("ContextBuilder — perfil inexistente", () => {
 
   it("null no inventa Tecnologías ni Componentes", async () => {
     const { provider } = fakeProvider(null);
-    const builder = new ContextBuilder(provider);
+    const { retriever } = fakeMemoryRetriever();
+    const builder = new ContextBuilder(provider, retriever);
 
     const context = await builder.build(buildTask());
 
     expect(context.systemPrompt).not.toContain("Tecnologías:");
     expect(context.systemPrompt).not.toContain("Componentes:");
+  });
+});
+
+describe("ContextBuilder — memorias", () => {
+  it("consulta memoryRetriever.search() con text=task.instruction y projectId=task.projectId", async () => {
+    const { provider } = fakeProvider(null);
+    const { retriever, calls } = fakeMemoryRetriever([]);
+    const builder = new ContextBuilder(provider, retriever);
+
+    await builder.build(buildTask({ instruction: "revisa el PR #42", projectId: "proyecto-x" }));
+
+    expect(calls).toEqual([{ text: "revisa el PR #42", projectId: "proyecto-x" }]);
+  });
+
+  it("incluye Memorias relevantes como '- content', una por línea", async () => {
+    const { provider } = fakeProvider(null);
+    const { retriever } = fakeMemoryRetriever([
+      buildMemoryResult({ memory: { ...buildMemoryResult().memory, content: "Usa pnpm, no npm." } }),
+      buildMemoryResult({ memory: { ...buildMemoryResult().memory, content: "El login usa JWT." } }),
+    ]);
+    const builder = new ContextBuilder(provider, retriever);
+
+    const context = await builder.build(buildTask());
+
+    expect(context.systemPrompt).toContain("Memorias relevantes:\n- Usa pnpm, no npm.\n- El login usa JWT.");
+  });
+
+  it("memories:[] omite la sección de Memorias relevantes", async () => {
+    const { provider } = fakeProvider(null);
+    const { retriever } = fakeMemoryRetriever([]);
+    const builder = new ContextBuilder(provider, retriever);
+
+    const context = await builder.build(buildTask());
+
+    expect(context.systemPrompt).not.toContain("Memorias relevantes:");
+  });
+
+  it("un fallo de memoryRetriever.search() se propaga sin envolver — todo o nada", async () => {
+    const { provider } = fakeProvider(null);
+    const searchError = new Error("OllamaEmbeddingProvider no disponible");
+    const retriever: IMemoryRetriever = {
+      async search() {
+        throw searchError;
+      },
+    };
+    const builder = new ContextBuilder(provider, retriever);
+
+    await expect(builder.build(buildTask())).rejects.toBe(searchError);
   });
 });

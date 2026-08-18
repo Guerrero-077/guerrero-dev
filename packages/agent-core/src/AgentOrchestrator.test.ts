@@ -9,6 +9,7 @@ import type {
 import type {
   IExecutionEngine,
   ILLMProvider,
+  IMemoryRetriever,
   IPolicyEngine,
   IProjectIntelligenceProvider,
 } from "@guerrero-dev/application";
@@ -44,6 +45,12 @@ function fakeProjectIntelligenceProvider(
     },
   };
 }
+
+const fakeMemoryRetriever: IMemoryRetriever = {
+  async search() {
+    return [];
+  },
+};
 
 function fakeLLMProvider(result: string | Error): { provider: ILLMProvider; calls: unknown[] } {
   const calls: unknown[] = [];
@@ -120,7 +127,7 @@ const PLAN_WITH_TOOL_STEP: ExecutionPlan = {
 
 describe("AgentOrchestrator.run()", () => {
   it("llama a ILLMProvider.generate() con modelName/prompt/system derivados de task y del BuiltContext", async () => {
-    const contextBuilder = new ContextBuilder(fakeProjectIntelligenceProvider(null));
+    const contextBuilder = new ContextBuilder(fakeProjectIntelligenceProvider(null), fakeMemoryRetriever);
     const { provider: llmProvider, calls } = fakeLLMProvider("respuesta del LLM");
     const executionEngine = fakeExecutionEngine({
       planId: "plan-1",
@@ -146,7 +153,7 @@ describe("AgentOrchestrator.run()", () => {
   });
 
   it("incluye llmResponse en el ExecutionResult final, preservando el resto de campos", async () => {
-    const contextBuilder = new ContextBuilder(fakeProjectIntelligenceProvider(null));
+    const contextBuilder = new ContextBuilder(fakeProjectIntelligenceProvider(null), fakeMemoryRetriever);
     const { provider: llmProvider } = fakeLLMProvider("respuesta del LLM");
     const executionEngine = fakeExecutionEngine({
       planId: "plan-1",
@@ -173,7 +180,7 @@ describe("AgentOrchestrator.run()", () => {
   });
 
   it("propaga sin envolver un error de ILLMProvider.generate() — todo o nada", async () => {
-    const contextBuilder = new ContextBuilder(fakeProjectIntelligenceProvider(null));
+    const contextBuilder = new ContextBuilder(fakeProjectIntelligenceProvider(null), fakeMemoryRetriever);
     const llmError = new Error("Ollama no disponible");
     const { provider: llmProvider } = fakeLLMProvider(llmError);
     const executionEngine = fakeExecutionEngine({
@@ -192,7 +199,7 @@ describe("AgentOrchestrator.run()", () => {
   });
 
   it("no llama a plan()/execute() si el LLM falla", async () => {
-    const contextBuilder = new ContextBuilder(fakeProjectIntelligenceProvider(null));
+    const contextBuilder = new ContextBuilder(fakeProjectIntelligenceProvider(null), fakeMemoryRetriever);
     const { provider: llmProvider } = fakeLLMProvider(new Error("Ollama no disponible"));
     let planCalled = false;
     const executionEngine: IExecutionEngine = {
@@ -218,7 +225,7 @@ describe("AgentOrchestrator.run()", () => {
   });
 
   it("sigue invocando plan()/execute() con el mismo comportamiento que antes de 5.2", async () => {
-    const contextBuilder = new ContextBuilder(fakeProjectIntelligenceProvider(null));
+    const contextBuilder = new ContextBuilder(fakeProjectIntelligenceProvider(null), fakeMemoryRetriever);
     const { provider: llmProvider } = fakeLLMProvider("ok");
     let executeOptions: ExecutionOptions | undefined;
     const executionEngine: IExecutionEngine = {
@@ -245,7 +252,7 @@ describe("AgentOrchestrator.run()", () => {
   });
 
   it("evalúa cada ToolRequest del plan contra IPolicyEngine antes de ejecutar, con id/requestedAt completados y el PolicyContext derivado de task", async () => {
-    const contextBuilder = new ContextBuilder(fakeProjectIntelligenceProvider(null));
+    const contextBuilder = new ContextBuilder(fakeProjectIntelligenceProvider(null), fakeMemoryRetriever);
     const { provider: llmProvider } = fakeLLMProvider("ok");
     const executionEngine: IExecutionEngine = {
       name: "fake-engine",
@@ -285,7 +292,7 @@ describe("AgentOrchestrator.run()", () => {
   });
 
   it("si PolicyEngine deniega un ToolRequest, corta antes de ejecutar y devuelve status failed con el reason de la decisión", async () => {
-    const contextBuilder = new ContextBuilder(fakeProjectIntelligenceProvider(null));
+    const contextBuilder = new ContextBuilder(fakeProjectIntelligenceProvider(null), fakeMemoryRetriever);
     const { provider: llmProvider } = fakeLLMProvider("respuesta del LLM");
     const executionEngine: IExecutionEngine = {
       name: "fake-engine",
