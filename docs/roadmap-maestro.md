@@ -222,3 +222,56 @@ con la visión original y con lo que falta.
 - No trata Fase 6-9 como diseñadas — son marcadores de posición en la
   secuencia, cada una necesita su propia auditoría cuando le toque el
   turno, exactamente como cada subfase de 4.x-6.x la tuvo.
+
+## 7. Backlog priorizado — qué falta por revisar y por hacer
+
+Orden por dependencia real, verificado contra el código de esta sesión
+— no por preferencia. "Por revisar" significa auditoría formal (mismo
+ritual de 4.x-6.x: audit → decisiones → propuesta → aprobación) antes
+de escribir código; ningún ítem de esta lista está autorizado para
+implementación todavía, solo ordenado para cuando se retome.
+
+```text
+1. AUDITAR — Fase 5.1: LLM local conectado (Ollama + modelo 7B-class)
+   Bloquea todo lo demás: sin esto, nada de lo ya construido influye
+   una respuesta real (§3, fase-6-to-7-reconciliation.md §2).
+
+2. AUDITAR — Fase 5.2: BuiltContext consumido por AgentOrchestrator.run()
+   Hoy se descarta (AgentOrchestrator.ts:36) — depende de 5.1 (no hay
+   nada que "consumir hacia" sin LLM conectado).
+
+3. AUDITAR — Fase 5.3: PolicyEngine cableado dentro de run()
+   Ya existe real (PolicyEvaluator, fail-closed) — falta invocarlo.
+   Puede auditarse junto con 5.2 (mismo método) o por separado —
+   decisión de la propia auditoría.
+
+4. AUDITAR — Fase 5.4a: Memory expuesta a ContextBuilder
+   Componible: DrizzleMemoryCandidateRetriever ya funciona con pgvector
+   real, falta exponerlo como segundo provider de contexto (mismo
+   patrón que IProjectIntelligenceProvider).
+
+5. AUDITAR — Fase 5.4b: Code Intelligence expuesta al agente
+   Componible: ICodeAnalyzer/queries ya reales (6.1-6.5) — falta un
+   consumidor (tool o segundo provider de contexto).
+
+6. AUDITAR — Fase 5.5: Integración Cline/OpenCode real
+   Alcance original completo de "Fase 7" versionada — depende de que
+   5.1-5.4 ya den un loop real funcionando primero.
+
+7. HOUSEKEEPING (no bloqueante, cuando convenga) — corregir el
+   comentario desactualizado de packages/project-intelligence/src/index.ts
+   (dice "implementación real llega en Fase 5-6"; la implementación
+   real llegó a domain/project + domain/code en su lugar). Señalado ya
+   en el mapa de Fase 6 §9a y en fase-6-to-7-reconciliation.md §3 — se
+   agrupa aquí para no perderlo, sin bloquear nada.
+
+8. DIFERIDO, sin evidencia todavía — Fase 6 (Developer Tools), Fase 7
+   (Autonomous Workflows): no se auditan hasta que 5.1-5.5 den un loop
+   real que las necesite.
+
+9. EVOLUTIVO, sin evidencia todavía — Fase 8 (Personal Engineering
+   Profile), Fase 9 (Continuous Learning), MemoryEmbedding
+   autogenerado en promoción (gap operacional ya documentado en cierre
+   de Fase 2/4), ConflictDetector real. Se listan para no perderlos, no
+   para programarlos.
+```
