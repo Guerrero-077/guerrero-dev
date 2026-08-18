@@ -7,5 +7,7 @@
  * depende de ts-morph/typescript ni de infraestructura — eso es
  * responsabilidad exclusiva de infrastructure/code-intelligence (6.3).
  */
+export * from "./models/index.js";
 export * from "./ports/index.js";
 export * from "./queries/index.js";
+export * from "./services/index.js";
