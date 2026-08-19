@@ -41,6 +41,15 @@ import { createCliContext } from "../context.js";
  * `docs/adr/0003-opencode-primero.md`. `OpenCodeExecutionEngine` recibe
  * el mismo id (`OLLAMA_PROVIDER_ID`) para incluirlo en cada
  * `session.prompt()`.
+ *
+ * Fase 5.8: `--model` opcional permite elegir qué modelo de Ollama usa
+ * la corrida, sin editar `OLLAMA_DEFAULT_MODEL`. Motivo real: la
+ * primera corrida end-to-end (Fase 5.7, `gemma3:4b`) devolvió una tool
+ * call como JSON en texto plano en vez de una tool call real
+ * interceptada por el puente de Fase 5.5b — hipótesis sin confirmar
+ * sobre soporte de tool-calling del modelo, no del wiring. Este flag
+ * permite repetir el experimento con otros modelos ya descargados
+ * (p. ej. `qwen2.5-coder:7b`) sin tocar variables de entorno.
  */
 export function registerAgentCommands(program: Command): void {
   const agent = program.command("agent").description("Ejecuta al agente de Guerrero Dev");
@@ -48,7 +57,8 @@ export function registerAgentCommands(program: Command): void {
   agent
     .command("run <projectId> <instruction>")
     .description("Corre una instrucción real contra un proyecto registrado")
-    .action(async (projectId: string, instruction: string) => {
+    .option("-m, --model <model>", "Modelo de Ollama a usar (default: OLLAMA_DEFAULT_MODEL)")
+    .action(async (projectId: string, instruction: string, options: { model?: string }) => {
       const ctx = createCliContext();
       let server: Awaited<ReturnType<typeof createOpencodeServer>> | undefined;
 
@@ -61,6 +71,7 @@ export function registerAgentCommands(program: Command): void {
         }
 
         const config = loadConfig();
+        const modelName = options.model ?? config.OLLAMA_DEFAULT_MODEL;
         const db = createDrizzleClient(ctx.pool);
 
         const llmProvider = new OllamaProvider(config.OLLAMA_BASE_URL);
@@ -88,7 +99,7 @@ export function registerAgentCommands(program: Command): void {
                 npm: "@ai-sdk/openai-compatible",
                 name: "Ollama (local)",
                 options: { baseURL: new URL("/v1", config.OLLAMA_BASE_URL).toString() },
-                models: { [config.OLLAMA_DEFAULT_MODEL]: {} },
+                models: { [modelName]: {} },
               },
             },
           },
@@ -110,7 +121,7 @@ export function registerAgentCommands(program: Command): void {
           userId: userInfo().username,
           projectRootPath: project.path,
           instruction,
-          modelName: config.OLLAMA_DEFAULT_MODEL,
+          modelName,
         };
 
         const result = await orchestrator.run(task);
