@@ -134,9 +134,11 @@ no solo contra lo que este documento planeaba:
 5.3  PolicyEngine cableado dentro de run()          🟡 parcial —
      el loop interno de PolicyEngine en AgentOrchestrator.run() sigue
      muerto con el motor OpenCode (ToolSelector.selectToolSteps()
-     siempre devuelve [], documentado en 6n); la política real hoy
-     pasa por el bridge de eventos de permisos de OpenCode
-     (5.5b/6b, 5.9b/6g, 5.9d/6i), un mecanismo distinto al planeado acá
+     siempre devuelve []); la política real pasa por el bridge de
+     eventos de permisos de OpenCode (5.5b/6b, 5.9b/6g, 5.9d/6i), un
+     mecanismo distinto al planeado acá — pero desde 6n/6r ese bridge sí
+     decide algo real: `read` y Code Intelligence pasan por
+     `AllowReadRule`, no solo por el fail-closed vacío
 5.4a Memory expuesta a ContextBuilder               ✅ cerrado
      (`IMemoryRetriever`, ver `ContextBuilder.ts`)
 5.4b Code Intelligence expuesta al agente           ✅ cerrado (5.4b,
@@ -148,27 +150,28 @@ no solo contra lo que este documento planeaba:
      confundir "sin consumidor" con "sin avance" fue un error de esa
      revisión, no un hallazgo nuevo
 5.5  Integración Cline/OpenCode real                🟡 sustancialmente
-     cerrada vía 5.5b-5.14 + 5.4c (6b-6q), con dos hallazgos reales
-     abiertos y no bloqueantes: 6n (AllowReadRule sin efecto en
-     runtime hasta que el motor exponga tool calls granulares) y 6p
-     (qwen2.5:7b-instruct-q4_K_M alucina rutas absolutas en tool
-     calls reales)
+     cerrada vía 5.5b-5.14 + 5.4c + 6n (6b-6r), con un hallazgo real
+     abierto y no bloqueante: 6p (qwen2.5:7b-instruct-q4_K_M alucina
+     rutas absolutas en tool calls reales — no reproducido de nuevo en
+     la verificación real de 6r, pero tampoco se cerró la causa raíz)
 ```
 
 Pendiente real antes de considerar cerrada toda la Fase 5 unificada:
-una decisión explícita sobre 6n/6p (5.4b/5.4c ya cerrados). Ninguno de
-los dos bloquea el uso actual de `guerrero agent run`, pero ninguno
-está resuelto todavía.
+una decisión explícita sobre 6p (5.4b/5.4c/6n ya cerrados). No bloquea
+el uso actual de `guerrero agent run`, pero no está resuelto todavía.
 
 ### Fase 6 — Developer Tools
 
 **Estado: ⛔ No iniciada.** Git tools, edición de archivos, ejecución de
 terminal — bajo permisos explícitos. `PolicyEngine`/`PolicyRule` ya
 existen desde Fase 1 (fail-closed real, `PolicyEvaluator.ts`,
-`AllowReadRule` desde 5.13), pero siguen sin decidir nada en el flujo
-real de `guerrero agent run` (gap de vocabulario `toolName` entre
-`PolicyRule` y las categorías de permiso de OpenCode, documentado en
-6n) — resolver eso es requisito real antes de que Fase 6 tenga sentido.
+`AllowReadRule` desde 5.13) y desde 6n/6r sí deciden algo real en el
+flujo de `guerrero agent run` — el gap de vocabulario `toolName` entre
+`PolicyRule` y las categorías de permiso de OpenCode está reconciliado
+(verificado real, ver 6r). Lo que falta para que Fase 6 tenga sentido
+ya no es un problema de wiring: es que no existe todavía ninguna
+`PolicyRule` que apruebe `edit`/`bash` (correctamente — sin capacidades
+reales de Developer Tools, no hay nada legítimo que aprobar ahí).
 Distinto de Code Intelligence (Fase 4): esa responde "¿qué existe y qué
 significa?", esto responde "haz X sobre el sistema" — no deben
 mezclarse.
@@ -240,9 +243,8 @@ con la visión original y con lo que falta.
 ## 6. Qué NO define este documento
 
 - No autoriza ninguna implementación nueva por sí mismo — el próximo
-  candidato real, con evidencia (§3, §7), es la auditoría formal de
-  5.4b (Code Intelligence expuesta al agente) o una decisión sobre los
-  hallazgos abiertos 6n/6p, con el mismo ritual usado en 4.x-6.x:
+  candidato real, con evidencia (§3, §7), es una decisión sobre 6p
+  (5.4b/5.4c/6n ya cerrados), con el mismo ritual usado en 4.x-6.x:
   audit → decisiones → propuesta formal → aprobación → implementación
   → verificación real → commit → checkpoint, en una conversación
   separada.
@@ -280,11 +282,12 @@ entrada propia fue 6b. Ver también el resumen de estado real en §3.
 3. PARCIAL — Fase 5.3: PolicyEngine cableado dentro de run()
    El loop interno de PolicyEngine en AgentOrchestrator.run() sigue sin
    invocarse en runtime con el motor OpenCode (ToolSelector.selectToolSteps()
-   devuelve [] siempre, documentado en 6n) — la política real que sí
-   opera hoy pasa por un mecanismo distinto: el bridge de eventos de
-   permisos de OpenCode (6b, 6g, 6i). No es el cableado que planeaba
-   esta entrada original; es una ruta alternativa que cumple el mismo
-   fin (fail-closed real) por otro camino.
+   devuelve [] siempre) — la política real que sí opera hoy pasa por un
+   mecanismo distinto: el bridge de eventos de permisos de OpenCode
+   (6b, 6g, 6i). No es el cableado que planeaba esta entrada original;
+   es una ruta alternativa que, desde 6n/6r, sí decide algo real
+   (`read` + Code Intelligence vía `AllowReadRule`), no solo fail-closed
+   vacío.
 
 4. CERRADO — Fase 5.4a: Memory expuesta a ContextBuilder
    ContextBuilder depende de IMemoryRetriever real, ver ContextBuilder.ts.
@@ -298,9 +301,10 @@ entrada propia fue 6b. Ver también el resumen de estado real en §3.
    `ContextBuilder`.
 
 6. SUSTANCIALMENTE CERRADO — Fase 5.5: Integración Cline/OpenCode real
-   Cubierto por los incrementos 5.5b-5.14 + 5.4c (6b-6q) de abajo. Dos
-   hallazgos reales quedan abiertos y no bloqueantes: 6n (PolicyRule
-   sin efecto en runtime) y 6p (alucinación de rutas del modelo).
+   Cubierto por los incrementos 5.5b-5.14 + 5.4c + 6n (6b-6r) de abajo.
+   Un hallazgo real queda abierto y no bloqueante: 6p (alucinación de
+   rutas del modelo) — no reproducido de nuevo en la verificación real
+   de 6r, pero sin causa raíz confirmada todavía.
 
 6b. CERRADO — Fase 5.5b: puentear permisos reales de OpenCode con
    IPolicyEngine. Cierra la brecha de seguridad documentada al cerrar
@@ -671,6 +675,11 @@ entrada propia fue 6b. Ver también el resumen de estado real en §3.
    la comparación exacta sensible a mayúsculas) más un caso end-to-end en
    `PolicyEvaluator.test.ts` con la regla real registrada en el motor.
 
+   **Actualización — Fase 6n cerrada de verdad en 6r**: el vocabulario sí
+   se reconcilió, y esta regla sí se volvió alcanzable en runtime — ver
+   6r para la evidencia real completa. Esta entrada se deja intacta como
+   registro histórico de lo que se sabía en su momento.
+
 6o. CERRADO — Fase 5.14: el contexto real (Memory + Project
    Intelligence) ya llega al agente que responde. Auditando el estado de
    la Fase 5 para decidir si se podía cerrar, se confirmó con lectura
@@ -857,6 +866,70 @@ entrada propia fue 6b. Ver también el resumen de estado real en §3.
    hallazgo nuevo. El handler ya existía real y testeado desde el commit
    `5ad3370`; lo que le faltaba era consumidor, confirmado con
    `git log`, no con una suposición.
+
+6r. CERRADO — Fase 6n: vocabulario canónico de `toolName` reconciliado,
+   `AllowReadRule` real y alcanzable en runtime por primera vez.
+   Auditando 6n se encontró una brecha de seguridad real en el propio
+   trabajo de 5.4c, del mismo tipo que 5.9b: el log de `opencode serve`
+   mostró `evaluated permission=code-intelligence_find_symbols_by_name
+   ... action.action=allow` — los cuatro tools de Code Intelligence se
+   auto-aprobaban en silencio, sin que `IPolicyEngine` los viera jamás.
+
+   Segundo hallazgo, que corrige lo escrito en 5.10/6c: se creía que
+   `"read"` nunca podía ser una categoría de `Config.permission` (basado
+   en los tipos de `@opencode-ai/sdk`, `Agent.permission`). Falso —
+   mismo tipo de desfase tipos/binario que ya reveló 5.9d. El `GET /doc`
+   real del binario (`opencode-ai@1.18.18`) expone un
+   `PermissionConfig` mucho más rico: `"read"`, `"glob"`, `"grep"`,
+   `"bash"`, `"task"`, `"external_directory"`, `"lsp"`, `"skill"`
+   explícitos, más un `additionalProperties: PermissionRuleConfig` que
+   acepta cualquier nombre de tool — incluidos los de un servidor MCP.
+   Verificado real, en vivo, con `opencode serve` + Ollama reales:
+   forzar `permission: { read: "ask" }` produce un `permission.asked`
+   real con `properties.permission === "read"`; lo mismo para
+   `code-intelligence_find_symbols_by_name` forzando su propia entrada.
+   Nunca se había probado contra el schema real, solo se había asumido
+   de los tipos.
+
+   Con esa evidencia, `AllowReadRule` (5.13) deja de ser código muerto:
+   gana un constructor con `additionalAllowedTools` (Fase 6n) —
+   `agent-core` no puede depender de `@guerrero-dev/mcp` (paquetes
+   hermanos en la capa de "implementaciones", `CLAUDE.md`), así que el
+   composition root real (`apps/cli/src/commands/agent.ts`) arma la
+   lista completa (`CODE_INTELLIGENCE_TOOL_NAMES` de `@guerrero-dev/mcp`
+   + el id real del servidor MCP) y se la inyecta ya resuelta. Respeta
+   la limitación de composición que el propio JSDoc de la clase ya
+   documentaba: se amplía la allow-list de la regla existente, no se
+   agrega una segunda regla allow (que se anularía con esta bajo AND).
+   `Config.permission` real del composition root gana `read` + las
+   cuatro entradas de Code Intelligence; `PolicyEvaluator` deja de
+   construirse sin reglas por primera vez en un composition root real.
+   `external_directory` queda fuera, sin re-verificar en esta sesión —
+   5.9c ya documenta que se pide sin forzarlo, sin evidencia de que
+   necesite el mismo tratamiento.
+
+   Tests: 4 casos nuevos en `AllowReadRule.test.ts` (tools inyectadas,
+   read sigue aprobado, tool no listada se deniega, comportamiento
+   default sin cambios) — 491 tests totales (antes 487).
+   Build/typecheck/lint limpios.
+
+   **Verificado real, end-to-end**, contra Postgres + Ollama +
+   `opencode serve` reales (`guerrero agent run f4634eac-... "..."`,
+   proyecto real `guerrero-dev`): "Leé el archivo package.json de la
+   raíz..." → `Estado: succeeded`, contenido real del `package.json`
+   real, sin alucinación de rutas (mismo prompt que motivó 6p). "Busca
+   el símbolo AgentOrchestrator en el código" → el modelo invocó
+   `code-intelligence_find_symbols_by_name` de verdad (permiso pedido,
+   evaluado por `AllowReadRule`, aprobado) y respondió correctamente
+   con la ubicación real (`packages/agent-core/src/AgentOrchestrator.ts`,
+   líneas 75-126). Un intento anterior con un prompt más compuesto
+   ("usa la herramienta... y decime...") devolvió una respuesta de texto
+   rota (con un fragmento en chino, sin responder la pregunta) —
+   `Estado: succeeded` igual, mismo tipo de limitación de fiabilidad de
+   instrucciones compuestas ya documentada en 6f/6p con este modelo 7B,
+   no una regresión de este cambio ni un problema del wiring de
+   permisos (que sí se completó y respondió correctamente en el segundo
+   intento).
 
 7. CERRADO — HOUSEKEEPING: comentario de packages/project-intelligence/src/index.ts
    corregido. Decía "implementación real llega en Fase 5-6"; ahora

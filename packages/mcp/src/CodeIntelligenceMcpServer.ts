@@ -53,6 +53,28 @@ export const CODE_INTELLIGENCE_REPO_ROOT_ENV = "GUERRERO_CODE_INTELLIGENCE_REPO_
 
 const MCP_SESSION_ID = "mcp";
 
+const TOOL_FIND_SYMBOLS_BY_NAME = "find_symbols_by_name";
+const TOOL_GET_DEPENDENCIES = "get_dependencies";
+const TOOL_GET_DEPENDENTS = "get_dependents";
+const TOOL_SEARCH_LITERAL = "search_literal";
+
+/**
+ * Nombres reales (sin prefijo de servidor MCP) de los cuatro tools que
+ * registra `buildCodeIntelligenceMcpServer()` — exportados como única
+ * fuente de verdad (Fase 5.4c-6n) para que el composition root
+ * (`apps/cli/src/commands/agent.ts`) pueda construir los nombres
+ * prefijados reales (`{serverId}_{toolName}`, ver JSDoc de
+ * `apps/cli/src/commands/agent.ts`) que necesita tanto para
+ * `Config.permission` como para `AllowReadRule`, sin duplicar los cuatro
+ * strings literales en otro package y arriesgar que diverjan.
+ */
+export const CODE_INTELLIGENCE_TOOL_NAMES = [
+  TOOL_FIND_SYMBOLS_BY_NAME,
+  TOOL_GET_DEPENDENCIES,
+  TOOL_GET_DEPENDENTS,
+  TOOL_SEARCH_LITERAL,
+] as const;
+
 export function buildCodeIntelligenceMcpServer(
   options: CodeIntelligenceMcpServerOptions,
 ): McpServer {
@@ -61,40 +83,40 @@ export function buildCodeIntelligenceMcpServer(
   const { repoRoot } = options;
 
   server.registerTool(
-    "find_symbols_by_name",
+    TOOL_FIND_SYMBOLS_BY_NAME,
     {
       description:
         "Busca símbolos de código (clases, funciones, interfaces, etc.) por nombre exacto en el árbol .ts trackeado por Git de este proyecto.",
       inputSchema: { name: z.string().min(1) },
     },
-    (args) => callHandler(handler, repoRoot, "find_symbols_by_name", args),
+    (args) => callHandler(handler, repoRoot, TOOL_FIND_SYMBOLS_BY_NAME, args),
   );
   server.registerTool(
-    "get_dependencies",
+    TOOL_GET_DEPENDENCIES,
     {
       description:
         "Lista los imports salientes (dependencias) de un archivo .ts de este proyecto, dada su ruta relativa al repositorio.",
       inputSchema: { filePath: z.string().min(1) },
     },
-    (args) => callHandler(handler, repoRoot, "get_dependencies", args),
+    (args) => callHandler(handler, repoRoot, TOOL_GET_DEPENDENCIES, args),
   );
   server.registerTool(
-    "get_dependents",
+    TOOL_GET_DEPENDENTS,
     {
       description:
         "Lista los archivos .ts de este proyecto que importan un archivo dado (dependientes), dada su ruta relativa al repositorio.",
       inputSchema: { filePath: z.string().min(1) },
     },
-    (args) => callHandler(handler, repoRoot, "get_dependents", args),
+    (args) => callHandler(handler, repoRoot, TOOL_GET_DEPENDENTS, args),
   );
   server.registerTool(
-    "search_literal",
+    TOOL_SEARCH_LITERAL,
     {
       description:
         "Busca un texto literal en el árbol .ts trackeado por Git de este proyecto (sin AST, coincidencia de texto).",
       inputSchema: { query: z.string().min(1) },
     },
-    (args) => callHandler(handler, repoRoot, "search_literal", args),
+    (args) => callHandler(handler, repoRoot, TOOL_SEARCH_LITERAL, args),
   );
 
   return server;

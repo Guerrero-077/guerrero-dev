@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { userInfo } from "node:os";
 import { Command } from "commander";
 import type { AgentTask } from "@guerrero-dev/domain";
-import { AgentOrchestrator, ContextBuilder, PolicyEvaluator } from "@guerrero-dev/agent-core";
+import { AgentOrchestrator, AllowReadRule, ContextBuilder, PolicyEvaluator } from "@guerrero-dev/agent-core";
 import { MemoryRanker, MemoryRetriever, ProjectIntelligenceProvider } from "@guerrero-dev/application";
 import { OpenCodeExecutionEngine } from "@guerrero-dev/execution";
 import {
@@ -13,7 +13,7 @@ import {
   loadConfig,
   OllamaEmbeddingProvider,
 } from "@guerrero-dev/infrastructure";
-import { CODE_INTELLIGENCE_REPO_ROOT_ENV } from "@guerrero-dev/mcp";
+import { CODE_INTELLIGENCE_REPO_ROOT_ENV, CODE_INTELLIGENCE_TOOL_NAMES } from "@guerrero-dev/mcp";
 import { createOpencodeClient, createOpencodeServer } from "@opencode-ai/sdk";
 import { createCliContext } from "../context.js";
 
@@ -36,6 +36,53 @@ const CODE_INTELLIGENCE_MCP_SERVER_PATH = require.resolve("@guerrero-dev/mcp/ser
  * asumido de la documentación de MCP.
  */
 const CODE_INTELLIGENCE_MCP_SERVER_ID = "code-intelligence";
+
+/**
+ * Nombres reales de tool que OpenCode le asigna a cada tool de
+ * `CodeIntelligenceMcpServer` cuando lo registra desde `Config.mcp`
+ * (`{CODE_INTELLIGENCE_MCP_SERVER_ID}_{toolName}`, ver JSDoc de
+ * `CODE_INTELLIGENCE_MCP_SERVER_ID` arriba) — construidos acá, en el único
+ * lugar que conoce ambas mitades, en vez de hardcodearlos de nuevo donde
+ * se usan (`permission` y `AllowReadRule`, más abajo).
+ *
+ * Fase 6n — hallazgo real que motiva usar esta lista en `permission`:
+ * verificando si Code Intelligence (5.4c) tenía el mismo problema que
+ * `webfetch` en 5.9b, el log de `opencode serve` mostró exactamente el
+ * mismo síntoma: `evaluated permission=code-intelligence_find_symbols_by_name
+ * ... action.action=allow`, sin ningún `permission.asked` — estos cuatro
+ * tools se auto-aprueban hoy, `IPolicyEngine` nunca los ve. Verificado
+ * real, en vivo, que `Config.permission` acepta cualquier nombre de tool
+ * como clave (`GET /doc` real de `opencode-ai@1.18.18`:
+ * `PermissionConfig` declara `additionalProperties: PermissionRuleConfig`,
+ * más rico que lo que documentan los tipos de `@opencode-ai/sdk`) y que
+ * forzar una entrada acá SÍ produce un `permission.asked` real para el
+ * tool exacto — mismo mecanismo que ya usaba `edit`/`bash`/`webfetch`
+ * desde 5.9b, nunca antes aplicado a un tool de MCP.
+ */
+const CODE_INTELLIGENCE_PREFIXED_TOOL_NAMES = CODE_INTELLIGENCE_TOOL_NAMES.map(
+  (toolName) => `${CODE_INTELLIGENCE_MCP_SERVER_ID}_${toolName}`,
+);
+
+/**
+ * `Config.permission` real (Fase 5.9b + 6n): fuerza `"ask"` para las
+ * categorías reales de tool que el agente `build` puede intentar
+ * (`edit`/`bash`/`webfetch`, 5.9b) más `read` y las cuatro de Code
+ * Intelligence (6n) — sin esto, OpenCode las auto-aprueba por su propio
+ * default interno y `IPolicyEngine` nunca las ve (verificado real para
+ * las cinco categorías nuevas, ver JSDoc de
+ * `CODE_INTELLIGENCE_PREFIXED_TOOL_NAMES`). `external_directory` queda
+ * fuera de esta lista, sin re-verificar en esta sesión: el JSDoc de 5.9c
+ * ya documenta que ese permiso sí se pide sin forzarlo acá (a diferencia
+ * de `webfetch`), así que no hay evidencia de que necesite el mismo
+ * tratamiento — no se agrega sin esa evidencia.
+ */
+const PERMISSION: Record<string, "ask" | "allow" | "deny"> = {
+  edit: "ask",
+  bash: "ask",
+  webfetch: "ask",
+  read: "ask",
+  ...Object.fromEntries(CODE_INTELLIGENCE_PREFIXED_TOOL_NAMES.map((toolName) => [toolName, "ask"] as const)),
+};
 
 /**
  * Fase 5.9c: red de seguridad, no fix de causa raíz. Verificando 5.9b con
@@ -99,6 +146,15 @@ const EXECUTION_TIMEOUT_MS = 120_000;
  * intacto como segunda capa: si en el futuro se reactiva alguna de estas
  * tools acá sin recordar tocar este archivo, `IPolicyEngine` fail-closed
  * las sigue denegando igual.
+ *
+ * **Corrección (Fase 6n) al párrafo de arriba**: "`read` nunca pasa por
+ * `IPolicyEngine`" era cierto solo mientras `Config.permission` no
+ * incluyera una entrada para `"read"` — no porque `"read"` no pudiera ser
+ * una categoría real. Nunca se probó contra el schema real del binario
+ * (`GET /doc`), solo se asumió de los tipos de `@opencode-ai/sdk`, ya
+ * demostrados desincronizados del binario en 5.9d. Ver el JSDoc de
+ * `CODE_INTELLIGENCE_PREFIXED_TOOL_NAMES` más abajo para la verificación
+ * real.
  */
 const DISABLED_TOOLS = {
   bash: false,
@@ -274,6 +330,23 @@ const MAX_AGENT_STEPS = 6;
  * naming), junto a los tools nativos (`bash`, `read`, `edit`, etc.) — en
  * un directorio de trabajo limpio, sin el problema de instancia
  * envenenada de arriba.
+ *
+ * Fase 6n: `permission` gana `read` y las cuatro entradas de
+ * `CODE_INTELLIGENCE_PREFIXED_TOOL_NAMES` (ver su JSDoc arriba para la
+ * verificación real de por qué esto es necesario y por qué funciona).
+ * `PolicyEvaluator` deja de construirse sin reglas: `AllowReadRule`
+ * (5.13/6n, `agent-core/rules`) se registra por primera vez en un
+ * composition root real, con las cuatro tools de Code Intelligence como
+ * `additionalAllowedTools` — son de solo lectura, mismo perfil de riesgo
+ * que `read` (ver JSDoc de la clase para por qué se amplía esa regla en
+ * vez de agregar una segunda). Efecto real, verificado en vivo: `edit`,
+ * `bash`, `webfetch` y `external_directory` (esta última nunca la fuerza
+ * explícitamente `permission`, pero cae en el mismo fail-closed por no
+ * estar en la allow-list) siguen denegados exactamente igual que antes —
+ * `AllowReadRule` no las aprueba. Lo único que cambia es que `read` y
+ * Code Intelligence, antes invisibles para `IPolicyEngine`, ahora pasan
+ * por él y quedan aprobados explícitamente en vez de auto-aprobados por
+ * el default de OpenCode.
  */
 export function registerAgentCommands(program: Command): void {
   const agent = program.command("agent").description("Ejecuta al agente de Guerrero Dev");
@@ -313,6 +386,7 @@ export function registerAgentCommands(program: Command): void {
         );
         const contextBuilder = new ContextBuilder(projectIntelligenceProvider, memoryRetriever);
         const policyEngine = new PolicyEvaluator();
+        policyEngine.addRule(new AllowReadRule(CODE_INTELLIGENCE_PREFIXED_TOOL_NAMES));
 
         const OLLAMA_PROVIDER_ID = "ollama";
         server = await createOpencodeServer({
@@ -332,7 +406,16 @@ export function registerAgentCommands(program: Command): void {
                 environment: { [CODE_INTELLIGENCE_REPO_ROOT_ENV]: project.path },
               },
             },
-            permission: { edit: "ask", bash: "ask", webfetch: "ask" },
+            // `Config["permission"]` de `@opencode-ai/sdk` solo declara
+            // edit/bash/webfetch/doom_loop/external_directory (sin índice
+            // dinámico) — el `GET /doc` real del binario sí acepta
+            // cualquier nombre de tool como clave (ver JSDoc de
+            // `CODE_INTELLIGENCE_PREFIXED_TOOL_NAMES`), así que `permission`
+            // se construye por fuera con un tipo más ancho, real, y se pasa
+            // como variable (no como literal inline) para no chocar con el
+            // chequeo de propiedades excedentes de TypeScript sobre el tipo
+            // desactualizado del SDK.
+            permission: PERMISSION,
             agent: {
               build: { tools: DISABLED_TOOLS, maxSteps: MAX_AGENT_STEPS },
               general: { maxSteps: MAX_AGENT_STEPS },

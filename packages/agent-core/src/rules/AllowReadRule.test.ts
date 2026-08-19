@@ -51,4 +51,36 @@ describe("AllowReadRule", () => {
 
     expect(decision.allowed).toBe(false);
   });
+
+  it("aprueba una tool adicional inyectada por constructor (Fase 6n)", async () => {
+    const rule = new AllowReadRule(["code-intelligence_find_symbols_by_name"]);
+
+    const decision = await rule.evaluate(makeRequest("code-intelligence_find_symbols_by_name"), context);
+
+    expect(decision.allowed).toBe(true);
+    expect(decision.riskLevel).toBe("low");
+  });
+
+  it("sigue aprobando read cuando se inyectan tools adicionales", async () => {
+    const rule = new AllowReadRule(["code-intelligence_find_symbols_by_name"]);
+
+    const decision = await rule.evaluate(makeRequest("read"), context);
+
+    expect(decision.allowed).toBe(true);
+  });
+
+  it("deniega una tool que no está ni en read ni en las adicionales inyectadas", async () => {
+    const rule = new AllowReadRule(["code-intelligence_find_symbols_by_name"]);
+
+    const decision = await rule.evaluate(makeRequest("code-intelligence_search_literal"), context);
+
+    expect(decision.allowed).toBe(false);
+    expect(decision.reason).toContain("code-intelligence_search_literal");
+  });
+
+  it("sin tools adicionales, el comportamiento es idéntico al default (solo read)", async () => {
+    const decision = await new AllowReadRule([]).evaluate(makeRequest("read"), context);
+
+    expect(decision.allowed).toBe(true);
+  });
 });
