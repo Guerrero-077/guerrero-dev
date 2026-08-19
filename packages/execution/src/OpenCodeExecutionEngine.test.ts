@@ -144,6 +144,20 @@ function buildPermissionEvent(propertyOverrides: Record<string, unknown> = {}): 
   } as unknown as Event;
 }
 
+/**
+ * Forma real de `session.created` (Fase 5.11) — a diferencia de
+ * `permission.updated`, este SÍ coincide con lo que declara el SDK, pero
+ * el campo relevante (`properties.info.parentID`) hay que armarlo a
+ * mano igual porque `fakeClient`/`Event` no modelan la forma completa de
+ * `Session`.
+ */
+function buildSessionCreatedEvent(sessionID: string, parentID: string): Event {
+  return {
+    type: "session.created",
+    properties: { sessionID, info: { parentID } },
+  } as unknown as Event;
+}
+
 describe("OpenCodeExecutionEngine.plan()", () => {
   it("crea una sesión real con directory=task.projectRootPath y usa session.id como ExecutionPlan.id", async () => {
     const { client, calls } = fakeClient({
@@ -418,6 +432,51 @@ describe("OpenCodeExecutionEngine.execute() — puente de permisos (Fase 5.5b, e
     const { client, calls } = fakeClient({
       create: async () => ({ data: { id: "session-abc" }, error: undefined }),
       events: [event],
+    });
+    const { engine: policyEngine, calls: policyCalls } = fakePolicyEngine(APPROVED_DECISION);
+    const { engine, plan } = await planned(client, policyEngine);
+
+    await engine.execute(plan, {});
+
+    expect(policyCalls).toEqual([]);
+    expect(calls.permissionReply).toEqual([]);
+  });
+
+  it("un permission.asked de un subagente real (session.created con parentID de la sesión principal) se evalúa y responde con el sessionID del subagente (Fase 5.11)", async () => {
+    const sessionCreated = buildSessionCreatedEvent("session-subagent", "session-abc");
+    const permissionFromSubagent = buildPermissionEvent({ sessionID: "session-subagent" });
+    const { client, calls } = fakeClient({
+      create: async () => ({ data: { id: "session-abc" }, error: undefined }),
+      events: [sessionCreated, permissionFromSubagent],
+    });
+    const { engine: policyEngine, calls: policyCalls } = fakePolicyEngine(APPROVED_DECISION);
+    const { engine, plan } = await planned(client, policyEngine);
+
+    await engine.execute(plan, {});
+
+    expect(policyCalls).toEqual([
+      {
+        request: {
+          id: "permission-1",
+          sessionId: "session-subagent",
+          toolName: "bash",
+          input: { command: "rm -rf /" },
+          requestedAt: expect.any(Date),
+        },
+        context: { userId: "user-1", projectRootPath: "/repo" },
+      },
+    ]);
+    expect(calls.permissionReply).toEqual([
+      { path: { id: "session-subagent", permissionID: "permission-1" }, body: { response: "once" } },
+    ]);
+  });
+
+  it("un permission.asked de una sesión creada sin relación a la principal (parentID distinto) se sigue ignorando", async () => {
+    const sessionCreated = buildSessionCreatedEvent("session-no-relacionada", "otra-sesion-padre");
+    const permission = buildPermissionEvent({ sessionID: "session-no-relacionada" });
+    const { client, calls } = fakeClient({
+      create: async () => ({ data: { id: "session-abc" }, error: undefined }),
+      events: [sessionCreated, permission],
     });
     const { engine: policyEngine, calls: policyCalls } = fakePolicyEngine(APPROVED_DECISION);
     const { engine, plan } = await planned(client, policyEngine);

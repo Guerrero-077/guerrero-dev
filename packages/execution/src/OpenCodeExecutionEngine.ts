@@ -129,6 +129,26 @@ import { OpenCodeExecutionEngineError } from "./OpenCodeExecutionEngineError.js"
  * específica (sin texto, con una tool call en `state.status: "error"`,
  * que cubre tanto rechazos de permiso como fallos reales de la tool) y
  * la reporta como `status: "failed"` con un `errorMessage` legible.
+ *
+ * Fase 5.11: al verificar 5.10 (tools de escritura apagadas para el
+ * agente `build`) pidiéndole al modelo una edición real, `qwen2.5:
+ * 7b-instruct-q4_K_M` canalizó el intento vía la tool `task` — que
+ * quedó habilitada — spawneando un subagente `general` con permiso
+ * propio para usar las tools que `build` tiene apagadas. Ese subagente
+ * tiene su propio `sessionID` real (confirmado en vivo:
+ * `session.created` con `properties.info.parentID` apuntando a la
+ * sesión principal), y `handlePermissionEvents()` filtraba por igualdad
+ * exacta contra `sessionId` — el permiso pedido desde el subagente
+ * nunca coincidía, nunca se evaluaba, nunca se respondía. El turno
+ * quedaba colgado hasta que `EXECUTION_TIMEOUT_MS` (Fase 5.9c) lo
+ * cortaba a los 120s en vez de fallar rápido. `sessionFamily` (un
+ * `Set<string>`, arranca con `sessionId`) crece cada vez que se ve un
+ * `session.created` real cuyo `parentID` ya está en la familia —
+ * cualquier `permission.asked` de un miembro de esa familia (la sesión
+ * principal o cualquier subagente descendiente) ahora se evalúa igual.
+ * `postSessionIdPermissionsPermissionId` pasa a usar el `sessionID` real
+ * dueño del permiso en el path (puede ser el del subagente, no
+ * `sessionId`) — la API lo exige por sesión.
  */
 interface SessionContext {
   readonly policyContext: PolicyContext;
@@ -314,9 +334,25 @@ export class OpenCodeExecutionEngine implements IExecutionEngine {
     sessionId: string,
     policyContext: PolicyContext,
   ): Promise<void> {
+    // `sessionFamily` empieza con la sesión principal y crece con cada
+    // subagente real que se vea nacer de ella (Fase 5.11) — ver JSDoc de
+    // clase para el hallazgo que motivó esto.
+    const sessionFamily = new Set<string>([sessionId]);
+
     for await (const event of stream) {
+      const createdChild = asSessionCreated(event);
+      if (createdChild) {
+        if (
+          createdChild.properties.info.parentID !== undefined &&
+          sessionFamily.has(createdChild.properties.info.parentID)
+        ) {
+          sessionFamily.add(createdChild.properties.sessionID);
+        }
+        continue;
+      }
+
       const permission = asPermissionAsked(event);
-      if (!permission || permission.properties.sessionID !== sessionId) continue;
+      if (!permission || !sessionFamily.has(permission.properties.sessionID)) continue;
 
       const request: ToolRequest = {
         id: permission.properties.id,
@@ -327,8 +363,10 @@ export class OpenCodeExecutionEngine implements IExecutionEngine {
       };
       const decision = await this.policyEngine.evaluate(request, policyContext);
 
+      // El path usa el sessionID real dueño del permiso (puede ser un
+      // subagente, no `sessionId`) — la API lo exige por sesión.
       await this.client.postSessionIdPermissionsPermissionId({
-        path: { id: sessionId, permissionID: permission.properties.id },
+        path: { id: permission.properties.sessionID, permissionID: permission.properties.id },
         body: { response: decision.allowed ? "once" : "reject" },
       });
     }
@@ -377,6 +415,37 @@ interface RealPermissionAskedEvent {
 function asPermissionAsked(event: Event): RealPermissionAskedEvent | undefined {
   return (event as unknown as { type?: unknown }).type === "permission.asked"
     ? (event as unknown as RealPermissionAskedEvent)
+    : undefined;
+}
+
+/**
+ * Forma real de `session.created` (Fase 5.11) — verificada en vivo igual
+ * que `asPermissionAsked`: a diferencia de `permission.updated` (Fase
+ * 5.9d), este evento SÍ coincide con lo que documenta
+ * `components.schemas.EventSessionCreated` del `GET /doc` real. Se
+ * necesita porque OpenCode puede canalizar una tool call vía la tool
+ * `task` (spawnea un subagente, p. ej. `agent: "general"`) — ese
+ * subagente tiene su propio `sessionID` real, distinto del `plan.id` que
+ * `execute()` rastrea, y sus `permission.asked` quedaban invisibles para
+ * este puente: `handlePermissionEvents()` filtraba por igualdad exacta
+ * de `sessionID`, así que un permiso pedido desde un subagente nunca se
+ * evaluaba ni se respondía — el turno quedaba colgado hasta que
+ * `EXECUTION_TIMEOUT_MS` (`apps/cli/src/commands/agent.ts`, Fase 5.9c)
+ * lo cortaba a los 120s. `properties.info.parentID` (real, confirmado
+ * contra el stream SSE real disparando un subagente de verdad) es lo que
+ * permite reconstruir el árbol de sesiones.
+ */
+interface RealSessionCreatedEvent {
+  readonly type: "session.created";
+  readonly properties: {
+    readonly sessionID: string;
+    readonly info: { readonly parentID?: string };
+  };
+}
+
+function asSessionCreated(event: Event): RealSessionCreatedEvent | undefined {
+  return (event as unknown as { type?: unknown }).type === "session.created"
+    ? (event as unknown as RealSessionCreatedEvent)
     : undefined;
 }
 

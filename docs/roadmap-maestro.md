@@ -515,23 +515,49 @@ implementación todavía, solo ordenado para cuando se retome.
    seguridad sigue intacta (verificado pidiendo explícitamente una
    edición: sigue denegada, ver 6l). Ver commit de esta sesión.
 
-6l. PENDIENTE — hallazgo nuevo, no arreglado: permisos de subagentes
-   invisibles para el puente de `IPolicyEngine`. Al pedir explícitamente
-   una edición (`"agregá una línea de comentario..."`), el modelo la
-   canalizó vía la tool `task` (spawnea un subagente `general`, con su
-   propio `sessionID`, distinto del `plan.id` que
-   `OpenCodeExecutionEngine.handlePermissionEvents()` rastrea). El
-   permiso pedido desde esa sub-sesión nunca coincide con el filtro
-   `permission.properties.sessionID !== sessionId` — el turno queda
-   colgado hasta que `EXECUTION_TIMEOUT_MS` (Fase 5.9c) lo corta a los
-   120s con `Estado: failed`. No es un cuelgue infinito (la red de
-   seguridad de 5.9c ya cubre esto) y no es el síntoma que motivó 6k
-   (preguntas de solo lectura ya funcionan) — pero significa que
-   cualquier pedido de escritura real hoy tarda 2 minutos en fallar en
-   vez de fallar rápido. Fix real pendiente de auditoría: `execute()`
-   necesitaría rastrear también las sub-sesiones que cuelgan de
-   `plan.id` (vía `parentID` en los eventos de sesión), no solo el
-   `sessionID` exacto de la tarea principal.
+6l. CERRADO — Fase 5.11: permisos de subagentes ya visibles para el
+   puente de `IPolicyEngine`. Al pedir explícitamente una edición
+   (`"agregá una línea de comentario..."`), el modelo a veces canaliza
+   la tool `task` (spawnea un subagente `general`, con su propio
+   `sessionID`, distinto del `plan.id` que
+   `OpenCodeExecutionEngine.handlePermissionEvents()` rastreaba). El
+   permiso pedido desde esa sub-sesión nunca coincidía con el filtro
+   `permission.properties.sessionID !== sessionId` — el turno quedaba
+   colgado hasta que `EXECUTION_TIMEOUT_MS` (Fase 5.9c) lo cortaba a los
+   120s en vez de fallar rápido.
+
+   Verificado real disparando un subagente de verdad (levantando
+   `opencode serve` a mano con la config real de `agent.ts`, incluido
+   `DISABLED_TOOLS` — necesario para reproducir: sin las tools apagadas
+   el modelo edita directo, sin pasar por `task`): el evento real
+   `session.created` (a diferencia de `permission.updated`, éste SÍ
+   coincide con lo que declara el SDK) trae `properties.info.parentID`
+   apuntando a la sesión principal. `sessionFamily` (`Set<string>`,
+   arranca con la sesión principal) crece con cada `session.created`
+   real cuyo `parentID` ya esté en la familia — cualquier
+   `permission.asked` de un miembro de esa familia se evalúa igual, y
+   `postSessionIdPermissionsPermissionId` usa el `sessionID` real dueño
+   del permiso (el del subagente, no el de la sesión principal) en el
+   path, como exige la API. 2 tests nuevos en
+   `OpenCodeExecutionEngine.test.ts` (subagente real evaluado y
+   respondido con su propio sessionID; sesión sin relación a la familia
+   sigue ignorada) — 20/20 en verde. Ver commit de esta sesión.
+
+6m. PENDIENTE, sin evidencia suficiente todavía — verificando 6l
+   end-to-end con el comando real, el modelo NO repitió el camino del
+   subagente esa vez (comportamiento no determinístico, ya documentado
+   en 6f/6h/6k) — en su lugar entró en un loop repitiendo la tool
+   `todowrite` (auto-permitida, `action.action=allow`) por 20+ pasos sin
+   converger, hasta terminar en `Estado: succeeded` sin `Salida:` tras
+   ~113s (no llegó a los 120s de `EXECUTION_TIMEOUT_MS`). Distinto del
+   síntoma que 5.9e ya cubre (esa vez si hubo tool call fallida
+   detectable) — acá ninguna tool falló, el modelo simplemente no dejó
+   de replanificar. No se investiga a fondo todavía: haría falta
+   reproducirlo controladamente (como se hizo con 6l) antes de proponer
+   un fix — candidato natural: `Config.agent.build.maxSteps` (ver
+   `AgentConfig.maxSteps`, `@opencode-ai/sdk`, "Maximum number of
+   agentic iterations before forcing text-only response"), sin
+   confirmar todavía si eso resuelve este caso puntual.
 
 7. HOUSEKEEPING (no bloqueante, cuando convenga) — corregir el
    comentario desactualizado de packages/project-intelligence/src/index.ts
