@@ -38,7 +38,7 @@ Fase 1 — Foundation + Agent Core skeleton   ✅ COMPLETADA
 Fase 2 — Memory System                      ✅ COMPLETADA
 Fase 3 — Project Intelligence               ✅ COMPLETADA
 Fase 4 — Code Intelligence                  ✅ COMPLETADA
-Fase 5 — Agent Core real (LLM conectado)    ⛔ SIGUIENTE PASO REAL
+Fase 5 — Agent Core real (LLM conectado)    🟡 EN PROGRESO (ver §3)
 Fase 6 — Developer Tools                    ⛔ NO INICIADA
 Fase 7 — Autonomous Workflows               ⛔ NO INICIADA
 Fase 8 — Personal Engineering Profile       🔵 EVOLUTIVO
@@ -111,39 +111,64 @@ separada de Project Intelligence, ver Fase 5.4.
 
 ### Fase 5 — Agent Core real (LLM conectado)
 
-**Estado: ⛔ Siguiente paso real — no iniciada.** Corresponde a "Fase
-7: Cline/OpenCode Integration" del repo real, acotada aquí en
-incrementos honestos sobre lo que hace falta primero. Hallazgo central
-(verificado directamente en `AgentOrchestrator.ts:35-47`):
-`AgentOrchestrator.run()` construye `BuiltContext` vía `ContextBuilder`
-y lo descarta sin usarlo; nunca invoca `ILLMProvider.generate()` (que sí
-tiene una implementación real, `OllamaProvider.ts`); `PolicyEngine` se
-inyecta por constructor pero no se llama dentro de `run()`; no existe
-ninguna ruta `/agent` ni `/chat` en `apps/api`.
+**Estado: 🟡 En progreso, grueso del transporte ya cerrado.**
+Corresponde a "Fase 7: Cline/OpenCode Integration" del repo real. El
+hallazgo que abrió esta fase (`AgentOrchestrator.run()` construía
+`BuiltContext` y lo descartaba, nunca invocaba `ILLMProvider.generate()`,
+`PolicyEngine` inyectado pero no llamado dentro de `run()`) ya no
+describe el estado real del código — cerrado en Fase 5.14 (ver §7,
+entrada 6o). No existe todavía ninguna ruta `/agent` ni `/chat` en
+`apps/api` (`guerrero agent run` es CLI-only), eso sigue sin tocarse.
 
-Subfases propuestas (a auditar formalmente antes de implementar,
-mismo ritual que 4.x-6.x):
+Las subfases propuestas originalmente no se auditaron una por una en
+orden estricto — el trabajo real avanzó incremento por incremento,
+documentado en el log de §7 (6b-6p), con su propia numeración orgánica
+(5.5b-5.14) que terminó cubriendo el alcance de 5.1-5.5. Estado real,
+verificado contra código (`ContextBuilder.ts`, `AgentOrchestrator.ts`),
+no solo contra lo que este documento planeaba:
 
 ```text
-5.1  LLM local conectado (Ollama + modelo ~7B — ver §4, hardware)
-5.2  BuiltContext consumido de verdad por AgentOrchestrator.run()
-5.3  PolicyEngine cableado dentro de run() (fail-closed ya implementado,
-     falta invocarlo)
-5.4  Memory (Fase 2) + Code Intelligence (Fase 4) expuestos al agente
-     como fuentes de contexto — componible: ambos ya existen y
-     funcionan, falta únicamente el consumidor
-5.5  Integración Cline/OpenCode real (alcance original completo de la
-     "Fase 7" versionada)
+5.1  LLM local conectado (Ollama + modelo ~7B)      ✅ cerrado
+     (OllamaProvider "endurecido en Fase 5.1", ver §7 entrada 6c)
+5.2  BuiltContext consumido de verdad por run()     ✅ cerrado (5.14, 6o)
+5.3  PolicyEngine cableado dentro de run()          🟡 parcial —
+     el loop interno de PolicyEngine en AgentOrchestrator.run() sigue
+     muerto con el motor OpenCode (ToolSelector.selectToolSteps()
+     siempre devuelve [], documentado en 6n); la política real hoy
+     pasa por el bridge de eventos de permisos de OpenCode
+     (5.5b/6b, 5.9b/6g, 5.9d/6i), un mecanismo distinto al planeado acá
+5.4a Memory expuesta a ContextBuilder               ✅ cerrado
+     (`IMemoryRetriever`, ver `ContextBuilder.ts`)
+5.4b Code Intelligence expuesta al agente           ⛔ sin empezar —
+     `ContextBuilder` solo depende de `IProjectIntelligenceProvider` +
+     `IMemoryRetriever`; `ICodeAnalyzer` (Fase 4/6.1-6.5) no tiene
+     consumidor todavía (verificado: sin referencias en
+     `ContextBuilder.ts`)
+5.5  Integración Cline/OpenCode real                🟡 sustancialmente
+     cerrada vía 5.5b-5.14 (6b-6o), con dos hallazgos reales abiertos
+     y no bloqueantes: 6n (AllowReadRule sin efecto en runtime hasta
+     que el motor exponga tool calls granulares) y 6p
+     (qwen2.5:7b-instruct-q4_K_M alucina rutas absolutas en tool
+     calls reales)
 ```
+
+Pendiente real antes de considerar cerrada toda la Fase 5 unificada:
+5.4b (Code Intelligence expuesta al agente) y una decisión explícita
+sobre 6n/6p. Ninguno de los dos bloquea el uso actual de
+`guerrero agent run`, pero ninguno está resuelto todavía.
 
 ### Fase 6 — Developer Tools
 
 **Estado: ⛔ No iniciada.** Git tools, edición de archivos, ejecución de
-terminal — bajo permisos explícitos. `PolicyEngine` ya existe desde
-Fase 1 (fail-closed real, `PolicyEvaluator.ts`), solo falta que Fase 5
-lo conecte al loop real antes de que Fase 6 tenga sentido. Distinto de
-Code Intelligence (Fase 4): esa responde "¿qué existe y qué significa?",
-esto responde "haz X sobre el sistema" — no deben mezclarse.
+terminal — bajo permisos explícitos. `PolicyEngine`/`PolicyRule` ya
+existen desde Fase 1 (fail-closed real, `PolicyEvaluator.ts`,
+`AllowReadRule` desde 5.13), pero siguen sin decidir nada en el flujo
+real de `guerrero agent run` (gap de vocabulario `toolName` entre
+`PolicyRule` y las categorías de permiso de OpenCode, documentado en
+6n) — resolver eso es requisito real antes de que Fase 6 tenga sentido.
+Distinto de Code Intelligence (Fase 4): esa responde "¿qué existe y qué
+significa?", esto responde "haz X sobre el sistema" — no deben
+mezclarse.
 
 ### Fase 7 — Autonomous Workflows
 
@@ -201,7 +226,7 @@ generación (serie H).
 | Fase 2 | Fase 4 — Memory System | `docs/fase-4-memory-engine-closure.md` |
 | Fase 3 | Fase 5 — Project Intelligence | `docs/fase-5-project-intelligence-closure.md` |
 | Fase 4 | Fase 6 — Code Intelligence | `docs/fase-6-code-intelligence-closure.md` |
-| Fase 5 | Fase 7 — Cline/OpenCode Integration | (nuevo, a auditar) |
+| Fase 5 | Fase 7 — Cline/OpenCode Integration | (en progreso — sin closure doc propio todavía, ver §3/§7 de este documento) |
 | Fase 6-9 | (no existían en el roadmap versionado real) | (nuevos, a auditar cuando corresponda) |
 
 Los documentos de cierre existentes (Fase 3/4/5/6 reales) no se tocan,
@@ -211,11 +236,13 @@ con la visión original y con lo que falta.
 
 ## 6. Qué NO define este documento
 
-- No autoriza ninguna implementación de Fase 5 en adelante — el
-  siguiente paso real es abrir la auditoría formal de 5.1 (LLM
-  conectado), con el mismo ritual usado en 4.x-6.x: audit → decisiones
-  → propuesta formal → aprobación → implementación → verificación real
-  → commit → checkpoint, en una conversación separada.
+- No autoriza ninguna implementación nueva por sí mismo — el próximo
+  candidato real, con evidencia (§3, §7), es la auditoría formal de
+  5.4b (Code Intelligence expuesta al agente) o una decisión sobre los
+  hallazgos abiertos 6n/6p, con el mismo ritual usado en 4.x-6.x:
+  audit → decisiones → propuesta formal → aprobación → implementación
+  → verificación real → commit → checkpoint, en una conversación
+  separada.
 - No congela un modelo LLM específico — da la clase de modelo
   recomendada y por qué, no el nombre exacto.
 - No renombra ni reescribe ningún documento de cierre existente.
@@ -225,38 +252,49 @@ con la visión original y con lo que falta.
 
 ## 7. Backlog priorizado — qué falta por revisar y por hacer
 
-Orden por dependencia real, verificado contra el código de esta sesión
-— no por preferencia. "Por revisar" significa auditoría formal (mismo
-ritual de 4.x-6.x: audit → decisiones → propuesta → aprobación) antes
-de escribir código; ningún ítem de esta lista está autorizado para
-implementación todavía, solo ordenado para cuando se retome.
+Orden por dependencia real, verificado contra el código — no por
+preferencia. Nació como backlog puro (ítems 1-6, "por auditar antes de
+implementar") y pasó a funcionar también como log de incrementos: cada
+entrada nueva se agrega al final (6b, 6c, ...), en vez de reescribir lo
+ya cerrado. Los ítems 1-6 quedaron desactualizados en su momento — se
+corrigen acá con el estado real verificado contra código; no se borran
+porque el resto del log (6b en adelante) los referencia como
+antecedente. No existe una entrada "6a" separada: cerrar 1-6 ocurrió
+como implementación incremental ordinaria, sin una auditoría formal
+distinguible que mereciera su propio número — el primer incremento con
+entrada propia fue 6b. Ver también el resumen de estado real en §3.
 
 ```text
-1. AUDITAR — Fase 5.1: LLM local conectado (Ollama + modelo 7B-class)
-   Bloquea todo lo demás: sin esto, nada de lo ya construido influye
-   una respuesta real (§3, fase-6-to-7-reconciliation.md §2).
+1. CERRADO — Fase 5.1: LLM local conectado (Ollama + modelo 7B-class)
+   OllamaProvider real y endurecido (ver 6c). Modelo confirmado con
+   evidencia real (no el candidato original): qwen2.5:7b-instruct-q4_K_M,
+   único con tool-calling estructurado confiable (6f).
 
-2. AUDITAR — Fase 5.2: BuiltContext consumido por AgentOrchestrator.run()
-   Hoy se descarta (AgentOrchestrator.ts:36) — depende de 5.1 (no hay
-   nada que "consumir hacia" sin LLM conectado).
+2. CERRADO — Fase 5.2: BuiltContext consumido por AgentOrchestrator.run()
+   Cerrado en 5.14 (6o) — antes de eso el contexto se construía y se
+   descartaba, tal como decía esta entrada originalmente.
 
-3. AUDITAR — Fase 5.3: PolicyEngine cableado dentro de run()
-   Ya existe real (PolicyEvaluator, fail-closed) — falta invocarlo.
-   Puede auditarse junto con 5.2 (mismo método) o por separado —
-   decisión de la propia auditoría.
+3. PARCIAL — Fase 5.3: PolicyEngine cableado dentro de run()
+   El loop interno de PolicyEngine en AgentOrchestrator.run() sigue sin
+   invocarse en runtime con el motor OpenCode (ToolSelector.selectToolSteps()
+   devuelve [] siempre, documentado en 6n) — la política real que sí
+   opera hoy pasa por un mecanismo distinto: el bridge de eventos de
+   permisos de OpenCode (6b, 6g, 6i). No es el cableado que planeaba
+   esta entrada original; es una ruta alternativa que cumple el mismo
+   fin (fail-closed real) por otro camino.
 
-4. AUDITAR — Fase 5.4a: Memory expuesta a ContextBuilder
-   Componible: DrizzleMemoryCandidateRetriever ya funciona con pgvector
-   real, falta exponerlo como segundo provider de contexto (mismo
-   patrón que IProjectIntelligenceProvider).
+4. CERRADO — Fase 5.4a: Memory expuesta a ContextBuilder
+   ContextBuilder depende de IMemoryRetriever real, ver ContextBuilder.ts.
 
-5. AUDITAR — Fase 5.4b: Code Intelligence expuesta al agente
-   Componible: ICodeAnalyzer/queries ya reales (6.1-6.5) — falta un
-   consumidor (tool o segundo provider de contexto).
+5. PENDIENTE — Fase 5.4b: Code Intelligence expuesta al agente
+   Sigue sin consumidor: ContextBuilder.ts no referencia ICodeAnalyzer
+   ni ningún query de Fase 4/6.1-6.5. Único ítem de la lista original
+   sin ningún avance todavía — candidato real a próxima auditoría.
 
-6. AUDITAR — Fase 5.5: Integración Cline/OpenCode real
-   Alcance original completo de "Fase 7" versionada — depende de que
-   5.1-5.4 ya den un loop real funcionando primero.
+6. SUSTANCIALMENTE CERRADO — Fase 5.5: Integración Cline/OpenCode real
+   Cubierto por los incrementos 5.5b-5.14 (6b-6o) de abajo. Dos
+   hallazgos reales quedan abiertos y no bloqueantes: 6n (PolicyRule
+   sin efecto en runtime) y 6p (alucinación de rutas del modelo).
 
 6b. CERRADO — Fase 5.5b: puentear permisos reales de OpenCode con
    IPolicyEngine. Cierra la brecha de seguridad documentada al cerrar
@@ -743,6 +781,15 @@ implementación todavía, solo ordenado para cuando se retome.
    ejemplo de un schema en vez de sustituirlos), el prompt de entorno de
    OpenCode, o algo combinable con un modelo más grande — decisión y
    alcance pendientes de una auditoría futura, no de un fix reflejo acá.
+
+   Estado real del backlog después de 6p (actualizado, ver también
+   §3): de la lista original 1-6, el único ítem sin ningún avance es
+   5 (Fase 5.4b, Code Intelligence expuesta al agente) — candidato más
+   directo a próxima auditoría formal. Además quedan dos decisiones
+   abiertas sin dueño todavía: 6n (vocabulario canónico de `toolName`
+   para que `PolicyRule`s como `AllowReadRule` tengan efecto real) y
+   6p (causa de la alucinación de rutas). Ninguno de los tres bloquea
+   `guerrero agent run` hoy.
 
 7. HOUSEKEEPING (no bloqueante, cuando convenga) — corregir el
    comentario desactualizado de packages/project-intelligence/src/index.ts
