@@ -103,13 +103,44 @@ Config.permission real (GET /doc del binario, hallazgo de 6r):
 ```
 
 `edit` no aparece en la lista explícita de `Config.permission` que 6r
-verificó — pero SÍ se observó como `permission.asked` real con
+verificó en vivo — pero SÍ se observó como `permission.asked` real con
 `properties.permission === "edit"` en Fase 5.9e (el intento del modelo
 de reescribir `package.json`, denegado correctamente por fail-closed).
 Combinando ambas evidencias: `edit` es una categoría real, alcanzable
 hoy vía `Config.permission.edit` o el catch-all `additionalProperties`
 — no hace falta reverificarlo, ya hay una captura real de un evento
 `edit` genuino.
+
+**Corroboración estática adicional, encontrada en esta auditoría** (sin
+infraestructura real disponible en este entorno — sin Ollama, sin
+binario `opencode`, sin caché de `opencode-ai` en el store de pnpm; esto
+es lectura de tipos, no verificación en vivo, mismo nivel de evidencia
+que ya se sabe insuficiente por sí solo, ver 5.9d/6r): el módulo `v2` de
+`@opencode-ai/sdk` (`dist/v2/gen/types.gen.d.ts`, no usado en
+producción — ADR 0003 lo descarta por inestable) declara un
+`PermissionConfig` explícito con `edit`, `read`, `glob`, `grep`, `list`,
+`bash`, `task`, `external_directory`, `todowrite`, `question`,
+`webfetch`, `websearch`, `lsp`, `doom_loop`, `skill` — un set más amplio
+que el que 6r llegó a verificar en vivo (solo necesitaba `read` +
+Code Intelligence). Y su `PermissionRequest` (línea 2029-2042) declara
+`{id, sessionID, permission, patterns, metadata, always, tool}` —
+**coincide campo por campo** con la forma real que 5.9d/6r capturaron en
+vivo contra el binario para el módulo raíz (`permission.asked`), pese a
+ser un módulo distinto. Esto no prueba nada sobre el contenido de
+`metadata` para `edit` (sigue siendo `{[key: string]: unknown}` incluso
+acá, sin tipar), pero sube la confianza en que la forma de nivel
+superior (§4) es estable entre módulos — reduce el riesgo de sorpresas
+en 6.1 al capturar el evento real, no lo elimina.
+
+Dato circunstancial, no evidencia directa: el mismo archivo `v2` declara
+un evento no relacionado, `"file.edited"`, con `properties: { file:
+string }` — sugiere que en algún punto del código real de OpenCode se
+modela un archivo editado como un string plano bajo la clave `file`.
+Es una hipótesis razonable para el nombre de campo que podría aparecer en
+`metadata` de un `permission.asked` de tipo `edit` (p. ej. `file` o
+`filePath`) — **no confirmada, no usable para escribir código todavía**;
+6.1 sigue siendo obligatorio antes de asumir cualquier nombre de campo
+real.
 
 **No existe una categoría de permiso "git" separada.** Cualquier
 operación de git pasaría por `bash` (`git commit`, `git checkout`, `git
@@ -229,6 +260,19 @@ de riesgo (ejecución arbitraria) no es comparable a `edit`, y no hay
 todavía ni la evidencia de `patterns` ni una allow-list de comandos
 diseñada. Se retoma cuando haya evidencia real de necesidad, mismo
 criterio que Fase 8/9 en `roadmap-maestro.md`.
+
+**Alternativa considerada y descartada**: `Agent.permission.bash` (tipo
+real, ver `types.gen.d.ts:1409-1411`) ya acepta un mapa
+`{ [patrónDeComando: string]: "ask" | "allow" | "deny" }` — en teoría
+alcanzaría con declarar ahí qué patrones de `git`/etc. se auto-aprueban,
+sin escribir ninguna `PolicyRule` nueva. Se descarta: cualquier patrón
+marcado `"allow"` ahí se resuelve *dentro de OpenCode*, sin emitir
+`permission.asked` — exactamente la misma categoría de brecha que 5.9b
+ya encontró y cerró para `webfetch` (aprobación real sin que
+`IPolicyEngine` la viera). Mantener todo `bash` en `"ask"` (ya así,
+Fase 5.9b) y decidir el patrón dentro de la `PolicyRule` — no en la
+config de OpenCode — es la única forma de que `IPolicyEngine` siga
+siendo la única fuente de verdad de qué se aprobó y por qué.
 
 ## 7. Subfases propuestas (todavía no autorizadas para implementación)
 
