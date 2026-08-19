@@ -480,6 +480,59 @@ implementación todavía, solo ordenado para cuando se retome.
    todo (incluso acciones inofensivas si el modelo las intentara) es la
    auditoría pendiente de la primera `PolicyRule` real, ítem 6c.
 
+6k. CERRADO — Fase 5.10: preguntas de solo lectura ya obtienen
+   respuesta de texto real. Diagnóstico: `read` nunca pasa por
+   `IPolicyEngine` — no es una categoría de `Config.permission`, así que
+   un `PolicyRule` no cambiaba nada acá (la idea original de "escribir la
+   primera PolicyRule" no aplicaba al síntoma real). El bloqueo
+   verdadero: tras leer el archivo, `qwen2.5:7b-instruct-q4_K_M` a veces
+   intentaba de más (reescribir el archivo con el texto numerado que le
+   devolvió `read`, o buscar algo no pedido en la web) — esa tool call
+   quedaba denegada (Fase 5.9b/5.9d) y OpenCode no le daba al modelo otro
+   turno para responder en texto (Fase 5.9e detecta esto, pero no lo
+   evita).
+
+   Verificado real, levantando `opencode serve` a mano con la config
+   real de este archivo: `Config.tools` a nivel raíz NO restringe lo que
+   el agente `build` puede intentar (probado: el modelo llamó `webfetch`
+   igual con `tools.webfetch: false` ahí). Recién bajo
+   `Config.agent.build.tools` (específico al agente `build`, confirmado
+   en los logs como el que se usa acá) el modelo dejó de poder invocar
+   esas tools — y, sin poder desviarse, leyó el archivo y respondió en
+   texto (`finish: "stop"`, no `"tool-calls"`).
+
+   `DISABLED_TOOLS` (`apps/cli/src/commands/agent.ts`) apaga `bash`,
+   `edit`, `write`, `webfetch`, `websearch`, `apply_patch` del agente
+   `build` — `read`/`glob`/`grep` quedan habilitadas. Coherente con
+   dónde está el proyecto hoy (Fase 5 — Agent Core real, sin acciones
+   reales todavía; escritura de archivos es Fase 6, no iniciada), no una
+   limitación arbitraria. `permission: {edit,bash,webfetch}: "ask"`
+   (Fase 5.9b) queda como segunda capa de defensa.
+
+   **Verificado real, con el comando exacto original, dos corridas
+   consecutivas**: `Estado: succeeded` con una `Salida:` de texto real
+   resumiendo las dependencias de `package.json` — la barrera de
+   seguridad sigue intacta (verificado pidiendo explícitamente una
+   edición: sigue denegada, ver 6l). Ver commit de esta sesión.
+
+6l. PENDIENTE — hallazgo nuevo, no arreglado: permisos de subagentes
+   invisibles para el puente de `IPolicyEngine`. Al pedir explícitamente
+   una edición (`"agregá una línea de comentario..."`), el modelo la
+   canalizó vía la tool `task` (spawnea un subagente `general`, con su
+   propio `sessionID`, distinto del `plan.id` que
+   `OpenCodeExecutionEngine.handlePermissionEvents()` rastrea). El
+   permiso pedido desde esa sub-sesión nunca coincide con el filtro
+   `permission.properties.sessionID !== sessionId` — el turno queda
+   colgado hasta que `EXECUTION_TIMEOUT_MS` (Fase 5.9c) lo corta a los
+   120s con `Estado: failed`. No es un cuelgue infinito (la red de
+   seguridad de 5.9c ya cubre esto) y no es el síntoma que motivó 6k
+   (preguntas de solo lectura ya funcionan) — pero significa que
+   cualquier pedido de escritura real hoy tarda 2 minutos en fallar en
+   vez de fallar rápido. Fix real pendiente de auditoría: `execute()`
+   necesitaría rastrear también las sub-sesiones que cuelgan de
+   `plan.id` (vía `parentID` en los eventos de sesión), no solo el
+   `sessionID` exacto de la tarea principal.
+
 7. HOUSEKEEPING (no bloqueante, cuando convenga) — corregir el
    comentario desactualizado de packages/project-intelligence/src/index.ts
    (dice "implementación real llega en Fase 5-6"; la implementación

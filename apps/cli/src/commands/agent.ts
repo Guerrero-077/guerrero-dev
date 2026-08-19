@@ -45,6 +45,50 @@ import { createCliContext } from "../context.js";
 const EXECUTION_TIMEOUT_MS = 120_000;
 
 /**
+ * Fase 5.10: por qué preguntas de solo lectura ("lee package.json y
+ * decime qué dependencias tiene") no obtenían respuesta de texto incluso
+ * con Fase 5.9d/5.9e ya arregladas. `read` nunca pasa por
+ * `IPolicyEngine` — no es una categoría de `Config.permission`, así que
+ * un `PolicyRule` no cambia nada ahí. El bloqueo real: con
+ * `qwen2.5:7b-instruct-q4_K_M`, después de leer el archivo el modelo
+ * intentaba de más (reescribir el archivo con el texto numerado que le
+ * devolvió `read`, o buscar en la web algo no pedido) — esa tool call
+ * quedaba denegada (`edit`/`bash`/`webfetch` gateadas a `"ask"`,
+ * `PolicyEvaluator` fail-closed sin reglas) y OpenCode no le daba al
+ * modelo otro turno para responder en texto — el turno terminaba en
+ * `finish: "tool-calls"`, sin ninguna parte de texto (Fase 5.9e).
+ *
+ * Verificado real (levantando `opencode serve` a mano con la config real
+ * de este archivo): `Config.tools` a nivel raíz NO restringe lo que el
+ * agente `build` puede intentar — probado, el modelo llamó `webfetch`
+ * igual con `tools.webfetch: false` en la raíz. Recién bajo
+ * `Config.agent.build.tools` (specific al agente `build`, el que
+ * `agent=build` en los logs confirma que se usa acá) el modelo dejó de
+ * poder invocar esas tools — y, sin la posibilidad de desviarse, leyó el
+ * archivo y respondió en texto (`finish: "stop"`, no `"tool-calls"`).
+ *
+ * `DISABLED_TOOLS` apaga exactamente las tools de escritura/red/ejecución
+ * (`bash`, `edit`, `write`, `webfetch`, `websearch`, `apply_patch`) del
+ * agente `build` — `read`/`glob`/`grep` (solo lectura) quedan
+ * habilitadas. Esto es coherente con dónde está el proyecto hoy (Fase 5,
+ * roadmap unificado — "Agent Core real, LLM conectado", sin acciones
+ * reales todavía; escritura de archivos es Fase 6 — Developer Tools, no
+ * iniciada) — no es una limitación arbitraria, es el alcance real de
+ * esta fase. `permission: {edit,bash,webfetch}: "ask"` (Fase 5.9b) queda
+ * intacto como segunda capa: si en el futuro se reactiva alguna de estas
+ * tools acá sin recordar tocar este archivo, `IPolicyEngine` fail-closed
+ * las sigue denegando igual.
+ */
+const DISABLED_TOOLS = {
+  bash: false,
+  edit: false,
+  write: false,
+  webfetch: false,
+  websearch: false,
+  apply_patch: false,
+} as const;
+
+/**
  * Primer composition root real (Fase 5.6): cablea de punta a punta las
  * piezas ya reales de Fase 5.1-5.5b — `OllamaProvider` (LLM),
  * `ContextBuilder` (Memory + Project Intelligence, con sus
@@ -172,6 +216,7 @@ export function registerAgentCommands(program: Command): void {
               },
             },
             permission: { edit: "ask", bash: "ask", webfetch: "ask" },
+            agent: { build: { tools: DISABLED_TOOLS } },
           },
         });
         const client = createOpencodeClient({ baseUrl: server.url });
