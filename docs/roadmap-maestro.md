@@ -543,21 +543,39 @@ implementación todavía, solo ordenado para cuando se retome.
    respondido con su propio sessionID; sesión sin relación a la familia
    sigue ignorada) — 20/20 en verde. Ver commit de esta sesión.
 
-6m. PENDIENTE, sin evidencia suficiente todavía — verificando 6l
-   end-to-end con el comando real, el modelo NO repitió el camino del
-   subagente esa vez (comportamiento no determinístico, ya documentado
-   en 6f/6h/6k) — en su lugar entró en un loop repitiendo la tool
-   `todowrite` (auto-permitida, `action.action=allow`) por 20+ pasos sin
-   converger, hasta terminar en `Estado: succeeded` sin `Salida:` tras
-   ~113s (no llegó a los 120s de `EXECUTION_TIMEOUT_MS`). Distinto del
-   síntoma que 5.9e ya cubre (esa vez si hubo tool call fallida
-   detectable) — acá ninguna tool falló, el modelo simplemente no dejó
-   de replanificar. No se investiga a fondo todavía: haría falta
-   reproducirlo controladamente (como se hizo con 6l) antes de proponer
-   un fix — candidato natural: `Config.agent.build.maxSteps` (ver
-   `AgentConfig.maxSteps`, `@opencode-ai/sdk`, "Maximum number of
-   agentic iterations before forcing text-only response"), sin
-   confirmar todavía si eso resuelve este caso puntual.
+6m. CERRADO — Fase 5.12: loops sin convergencia acotados con
+   `maxSteps`. Verificando 6l end-to-end con el comando real, el modelo
+   no repitió el camino del subagente esa vez (comportamiento no
+   determinístico, ya documentado en 6f/6h/6k) — en su lugar entró en
+   loops que nunca convergían (`todowrite` repetido sin fin en un caso,
+   o más pasos de los necesarios en otro, tanto en el agente `build`
+   como en un subagente `general`), terminando recién cuando
+   `EXECUTION_TIMEOUT_MS` cortaba a los 120s.
+
+   Verificado real, levantando `opencode serve` a mano con la config
+   real de `agent.ts`: `AgentConfig.maxSteps` ("Maximum number of
+   agentic iterations before forcing text-only response",
+   `@opencode-ai/sdk`) sí acota los pasos — probado en escalón:
+   `maxSteps: 1` corta antes de poder leer un archivo (muy agresivo);
+   `maxSteps: 3` ya alcanza para el flujo completo real (leer +
+   responder en texto con contenido real, no truncado); `6` da margen
+   extra sin acercarse a los 18-20+ pasos de un loop real. Hallazgo
+   importante: hay que declararlo en CADA agente que corre, no solo
+   `build` — un subagente `general` (vía `task`) corre bajo su propia
+   config de agente y no hereda el `maxSteps` de `build`; confirmado
+   real: con `maxSteps` solo en `build`, un pedido de escritura
+   canalizado vía subagente siguió sin converger hasta el timeout;
+   agregando `general: {maxSteps}` también, el mismo pedido resolvió en
+   ~23s.
+
+   `MAX_AGENT_STEPS = 6` (`apps/cli/src/commands/agent.ts`), aplicado a
+   `agent.build` y `agent.general`. **Verificado real, end-to-end**: el
+   caso de solo lectura (6k) sigue devolviendo una respuesta completa
+   sin truncar (~52s). El caso de escritura explícita (el que antes
+   tardaba 113-144s o llegaba al timeout de 120s) ahora resuelve en
+   ~46-52s en dos corridas consecutivas, con `package.json` siempre
+   intacto (verificado a mano después de cada corrida). Ver commit de
+   esta sesión.
 
 7. HOUSEKEEPING (no bloqueante, cuando convenga) — corregir el
    comentario desactualizado de packages/project-intelligence/src/index.ts

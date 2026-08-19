@@ -89,6 +89,36 @@ const DISABLED_TOOLS = {
 } as const;
 
 /**
+ * Fase 5.12: verificando Fase 5.11 (subagentes ya visibles para
+ * `IPolicyEngine`) end-to-end, el modelo no repitió el camino del
+ * subagente esa vez — en cambio, tanto el agente `build` como un
+ * subagente `general` (spawneado vía `task`, que sigue habilitada)
+ * entraron en loops que nunca convergían (`todowrite` repetido sin fin
+ * en un caso, o simplemente más pasos de los necesarios en otro),
+ * terminando recién cuando `EXECUTION_TIMEOUT_MS` cortaba a los 120s —
+ * mitigado, no evitado.
+ *
+ * `MAX_AGENT_STEPS` activa `AgentConfig.maxSteps` ("Maximum number of
+ * agentic iterations before forcing text-only response",
+ * `@opencode-ai/sdk/dist/gen/types.gen.d.ts`) — verificado real,
+ * levantando `opencode serve` a mano: con `maxSteps: 1` corta antes de
+ * poder ni siquiera leer un archivo (muy agresivo); con `maxSteps: 3` ya
+ * alcanza para el flujo normal completo (leer + responder en texto,
+ * verificado con contenido real, no truncado); `6` da margen extra sin
+ * acercarse a los 18-20+ pasos de un loop real. Tiene que declararse en
+ * CADA agente que puede correr, no solo `build`: un subagente `general`
+ * (vía `task`) corre bajo su propia config de agente, sin heredar el
+ * `maxSteps` de `build` — confirmado real: con `maxSteps` solo en
+ * `build`, un pedido de escritura que se canalizó vía subagente siguió
+ * sin converger hasta el timeout; agregando `general: {maxSteps}`
+ * también, el mismo pedido resolvió en ~23s. `general` es el único otro
+ * agente real que se ejercitó hasta ahora (vía `task`) — si en el
+ * futuro aparece evidencia de otro agente (`plan`, `explore`) corriendo
+ * acá, se audita entonces, no se adivina ahora.
+ */
+const MAX_AGENT_STEPS = 6;
+
+/**
  * Primer composition root real (Fase 5.6): cablea de punta a punta las
  * piezas ya reales de Fase 5.1-5.5b — `OllamaProvider` (LLM),
  * `ContextBuilder` (Memory + Project Intelligence, con sus
@@ -216,7 +246,10 @@ export function registerAgentCommands(program: Command): void {
               },
             },
             permission: { edit: "ask", bash: "ask", webfetch: "ask" },
-            agent: { build: { tools: DISABLED_TOOLS } },
+            agent: {
+              build: { tools: DISABLED_TOOLS, maxSteps: MAX_AGENT_STEPS },
+              general: { maxSteps: MAX_AGENT_STEPS },
+            },
           },
         });
         const client = createOpencodeClient({ baseUrl: server.url });
