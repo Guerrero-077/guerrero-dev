@@ -121,19 +121,27 @@ function buildTask(overrides: Partial<AgentTask> = {}): AgentTask {
   };
 }
 
+/**
+ * Forma real de `permission.asked` (Fase 5.9d) — NO la forma
+ * `permission.updated`/`Permission` que declaran los tipos de
+ * `@opencode-ai/sdk` (desincronizados del binario real, ver
+ * `asPermissionAsked` en `OpenCodeExecutionEngine.ts`). Sin `time`: el
+ * evento real no trae ningún timestamp.
+ */
 function buildPermissionEvent(propertyOverrides: Record<string, unknown> = {}): Event {
   return {
-    type: "permission.updated",
+    type: "permission.asked",
     properties: {
       id: "permission-1",
-      type: "bash",
       sessionID: "session-abc",
-      messageID: "message-1",
+      permission: "bash",
+      patterns: ["*"],
       metadata: { command: "rm -rf /" },
-      time: { created: 1755000000000 },
+      always: [],
+      tool: { messageID: "message-1", callID: "call-1" },
       ...propertyOverrides,
     },
-  } as Event;
+  } as unknown as Event;
 }
 
 describe("OpenCodeExecutionEngine.plan()", () => {
@@ -315,8 +323,8 @@ describe("OpenCodeExecutionEngine.execute() — respuesta del prompt", () => {
   });
 });
 
-describe("OpenCodeExecutionEngine.execute() — puente de permisos (Fase 5.5b)", () => {
-  it("un permission.updated de la sesión actual se evalúa y, si allowed, responde once", async () => {
+describe("OpenCodeExecutionEngine.execute() — puente de permisos (Fase 5.5b, evento real Fase 5.9d)", () => {
+  it("un permission.asked de la sesión actual se evalúa y, si allowed, responde once", async () => {
     const event = buildPermissionEvent();
     const { client, calls } = fakeClient({
       create: async () => ({ data: { id: "session-abc" }, error: undefined }),
@@ -338,7 +346,7 @@ describe("OpenCodeExecutionEngine.execute() — puente de permisos (Fase 5.5b)",
           sessionId: "session-abc",
           toolName: "bash",
           input: { command: "rm -rf /" },
-          requestedAt: new Date(1755000000000),
+          requestedAt: expect.any(Date),
         },
         context: { userId: "user-42", projectRootPath: "/repo-x" },
       },
@@ -370,7 +378,7 @@ describe("OpenCodeExecutionEngine.execute() — puente de permisos (Fase 5.5b)",
     ]);
   });
 
-  it("un permission.updated de otra sesión se ignora", async () => {
+  it("un permission.asked de otra sesión se ignora", async () => {
     const event = buildPermissionEvent({ sessionID: "otra-sesion" });
     const { client, calls } = fakeClient({
       create: async () => ({ data: { id: "session-abc" }, error: undefined }),

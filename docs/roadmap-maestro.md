@@ -391,6 +391,61 @@ implementación todavía, solo ordenado para cuando se retome.
    deje de filtrar por `directory`, o se resuelva contra el directorio
    real involucrado en cada permiso, no solo el del proyecto.
 
+6i. CERRADO (causa raíz confirmada y arreglada) — Fase 5.9d. La
+   hipótesis de 6h (filtro `directory` de `event.subscribe()`) quedó
+   **descartada** con evidencia directa, no confirmada por deducción:
+   se levantó `opencode serve` manualmente con la misma config real
+   (provider Ollama + `tool_call: true` + `permission: "ask"`) y se
+   abrieron DOS suscripciones SSE en paralelo a `GET /event` — una con
+   `?directory=<projectRoot>` (igual a nuestro código) y otra sin ningún
+   filtro. Se disparó la misma instrucción real que reproducía el
+   deadlock. Resultado: **ninguna de las dos** recibió jamás un evento
+   `permission.updated` — ni la filtrada ni la abierta. La hipótesis del
+   filtro estaba mal.
+
+   Causa real, confirmada inspeccionando `GET /doc` (spec OpenAPI que
+   sirve el propio binario `opencode-ai@1.18.18` en vivo) y el contenido
+   crudo del stream SSE: el servidor real emite `"permission.asked"`
+   (`components.schemas.EventPermissionAsked`/`PermissionAsked` del spec
+   real), con forma `properties: {id, sessionID, permission, patterns,
+   metadata, always, tool: {messageID, callID}}` — **sin ningún tipo
+   `"permission.updated"` en absoluto**, y sin campo `time`. Los tipos
+   generados de `@opencode-ai/sdk@1.18.18` (`Event`,
+   `EventPermissionUpdated`, `Permission`) — mismo número de versión que
+   el binario — están desincronizados del binario real: declaran
+   `type: "permission.updated"` con `properties.type`/
+   `properties.time.created`, una forma que el servidor real jamás
+   produjo en ningún experimento. `OpenCodeExecutionEngine.
+   handlePermissionEvents()` filtraba por `event.type !==
+   "permission.updated"` — nunca coincidía con nada real, así que ningún
+   permiso pedido de verdad llegó jamás a `IPolicyEngine.evaluate()`
+   desde que existe el puente (Fase 5.5b) — el bug estuvo ahí desde el
+   principio, nunca antes ejercitado contra un servidor real con un
+   permiso real disparado.
+
+   Confirmado el cierre completo del ciclo respondiendo manualmente
+   (`POST /session/{id}/permissions/{permissionID}`, endpoint sin
+   cambios — funciona tal como documenta el SDK) a un permiso real
+   capturado así: el `session.prompt()` que llevaba minutos colgado
+   resolvió al instante.
+
+   Fix real: `handlePermissionEvents()` ahora reconoce
+   `"permission.asked"` (vía un type guard local, `asPermissionAsked()`,
+   porque el `Event` importado del SDK no declara esta forma) y mapea
+   `properties.permission` (no `.type`) a `ToolRequest.toolName`;
+   `requestedAt` usa `new Date()` al procesar el evento, ya que el
+   payload real no trae ningún timestamp. `postSessionIdPermissionsPermissionId`
+   no cambió — ya funcionaba. `EXECUTION_TIMEOUT_MS` de Fase 5.9c queda
+   como red de seguridad de verdad (defensa en profundidad), ya no como
+   parche del síntoma principal.
+
+   **Verificado real, end-to-end, con el comando exacto que reveló el
+   problema** (`agent run ... --model qwen2.5:7b-instruct-q4_K_M`, dos
+   corridas consecutivas): `Estado: succeeded` en ~25-33s, sin cuelgue,
+   sin timeout — el permiso `external_directory` real se pide, se
+   evalúa (denegado, `PolicyEvaluator` fail-closed sin reglas), se
+   responde, y la sesión termina. Ver commit de esta sesión.
+
 7. HOUSEKEEPING (no bloqueante, cuando convenga) — corregir el
    comentario desactualizado de packages/project-intelligence/src/index.ts
    (dice "implementación real llega en Fase 5-6"; la implementación

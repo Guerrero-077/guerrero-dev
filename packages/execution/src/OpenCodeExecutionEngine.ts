@@ -56,7 +56,10 @@ import { OpenCodeExecutionEngineError } from "./OpenCodeExecutionEngineError.js"
  * `"once"` (aprobado) o `"reject"` (denegado): `"always"` haría que
  * OpenCode auto-apruebe futuras solicitudes idénticas sin volver a
  * consultar a `IPolicyEngine`, violando su garantía de fail-closed
- * reevaluado por solicitud.
+ * reevaluado por solicitud. **Corrección (Fase 5.9d)**: este puente
+ * quedó escrito contra el tipo de evento equivocado desde el día uno —
+ * nunca interceptó un permiso real hasta que se arregló en 5.9d, ver ese
+ * párrafo más abajo.
  *
  * Fix de hang (confirmado empíricamente contra un servidor `opencode
  * serve` real): `client.event.subscribe()` es una suscripción SSE sobre
@@ -79,6 +82,32 @@ import { OpenCodeExecutionEngineError } from "./OpenCodeExecutionEngineError.js"
  * `_options`) reusa el mismo controller como red de seguridad adicional
  * que acota todo `execute()`, no solo el listener; si no se pasa, no se
  * impone ningún límite nuevo.
+ *
+ * Fase 5.9d: causa raíz real del deadlock que `EXECUTION_TIMEOUT_MS`
+ * (`apps/cli/src/commands/agent.ts`) solo mitigaba. Confirmado en vivo
+ * (dos suscripciones SSE paralelas a un `opencode serve` real con la
+ * config real de este engine — una con `directory` igual a este código,
+ * otra sin filtro — disparando el mismo permiso real: NINGUNA de las dos
+ * recibió jamás un `permission.updated`) e inspeccionando `GET /doc`
+ * (spec OpenAPI que sirve el propio binario en vivo): el servidor real
+ * de `opencode-ai@1.18.18` emite `"permission.asked"`
+ * (`properties: {id, sessionID, permission, patterns, metadata, always,
+ * tool}`) — nunca `"permission.updated"`. Los tipos de
+ * `@opencode-ai/sdk@1.18.18` (`Event`/`EventPermissionUpdated`/
+ * `Permission`, mismo número de versión que el binario) están
+ * desincronizados del binario real: declaran una forma
+ * (`properties.type`, `properties.time.created`) que el servidor real
+ * jamás produjo. El filtro anterior de `handlePermissionEvents()`
+ * (`event.type !== "permission.updated"`) nunca coincidía con nada real
+ * — ningún permiso pedido de verdad llegó jamás a
+ * `IPolicyEngine.evaluate()` desde que existe este puente (Fase 5.5b).
+ * `asPermissionAsked()` (declarado más abajo, fuera de la clase) hace de
+ * type guard runtime contra la forma real, porque el `Event` importado
+ * del SDK no la declara. `requestedAt` se completa con `new Date()` al
+ * procesar el evento — el payload real no trae ningún timestamp.
+ * Verificado real, end-to-end, con el comando exacto que reveló el
+ * problema (`agent run ... --model qwen2.5:7b-instruct-q4_K_M`, dos
+ * corridas consecutivas): `Estado: succeeded` en ~25-33s, sin cuelgue.
  */
 interface SessionContext {
   readonly policyContext: PolicyContext;
@@ -238,24 +267,69 @@ export class OpenCodeExecutionEngine implements IExecutionEngine {
     policyContext: PolicyContext,
   ): Promise<void> {
     for await (const event of stream) {
-      if (event.type !== "permission.updated" || event.properties.sessionID !== sessionId) continue;
+      const permission = asPermissionAsked(event);
+      if (!permission || permission.properties.sessionID !== sessionId) continue;
 
-      const permission = event.properties;
       const request: ToolRequest = {
-        id: permission.id,
-        sessionId: permission.sessionID,
-        toolName: permission.type,
-        input: permission.metadata,
-        requestedAt: new Date(permission.time.created),
+        id: permission.properties.id,
+        sessionId: permission.properties.sessionID,
+        toolName: permission.properties.permission,
+        input: permission.properties.metadata,
+        requestedAt: new Date(),
       };
       const decision = await this.policyEngine.evaluate(request, policyContext);
 
       await this.client.postSessionIdPermissionsPermissionId({
-        path: { id: sessionId, permissionID: permission.id },
+        path: { id: sessionId, permissionID: permission.properties.id },
         body: { response: decision.allowed ? "once" : "reject" },
       });
     }
   }
+}
+
+/**
+ * Forma real del evento que `opencode serve` v1.18.18 emite al pedir un
+ * permiso — verificada en vivo (Fase 5.9d) contra `GET /doc` (spec
+ * OpenAPI servida por el propio binario, `components.schemas.
+ * EventPermissionAsked`/`PermissionAsked`) y contra el stream SSE real de
+ * `GET /event`, disparando a propósito un permiso `external_directory`
+ * real. Los tipos generados de `@opencode-ai/sdk` (`Event`,
+ * `EventPermissionUpdated`, `Permission`) — el mismo número de versión,
+ * "1.18.18", que el binario — NO coinciden con lo que el binario real
+ * emite: declaran `type: "permission.updated"` con
+ * `properties.type`/`properties.time.created`, pero el servidor real
+ * jamás emitió ese tipo de evento en ningún experimento — emite
+ * `"permission.asked"`, con `properties.permission` (no `.type`) y sin
+ * ningún campo `time`. Esta discrepancia (paquete npm desincronizado del
+ * binario que dice acompañar) es la causa raíz confirmada del deadlock
+ * de Fase 5.9c: el filtro anterior (`event.type !== "permission.updated"`)
+ * nunca coincidía con nada real, así que ningún permiso pedido de verdad
+ * llegaba jamás a `IPolicyEngine.evaluate()` — `session.prompt()`
+ * esperaba para siempre una respuesta que este archivo nunca llegaba a
+ * enviar. Confirmado el cierre completo del ciclo respondiendo
+ * manualmente (`POST /session/{id}/permissions/{permissionID}`, sin
+ * cambios — ese endpoint sí funciona como documenta el SDK) a un permiso
+ * real capturado así: `session.prompt()`, que llevaba minutos colgado,
+ * resolvió al instante.
+ *
+ * Sin `time` en el payload real, `requestedAt` se completa con
+ * `new Date()` al momento de procesar el evento — no hay ningún
+ * timestamp del lado del servidor que extraer para este evento.
+ */
+interface RealPermissionAskedEvent {
+  readonly type: "permission.asked";
+  readonly properties: {
+    readonly id: string;
+    readonly sessionID: string;
+    readonly permission: string;
+    readonly metadata: Record<string, unknown>;
+  };
+}
+
+function asPermissionAsked(event: Event): RealPermissionAskedEvent | undefined {
+  return (event as unknown as { type?: unknown }).type === "permission.asked"
+    ? (event as unknown as RealPermissionAskedEvent)
+    : undefined;
 }
 
 function extractText(parts: readonly { type: string; text?: string }[]): string | undefined {
