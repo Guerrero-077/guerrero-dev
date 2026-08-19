@@ -285,14 +285,11 @@ siendo la única fuente de verdad de qué se aprobó y por qué.
      composition root, con su propia allow-list de tools seguras
      duplicada — o revisar si ya hay evidencia para (b).
 
-6.3  PolicyRule real para "edit", acotada con la evidencia de 6.1:
-     como mínimo, validar que el path objetivo (el campo real que 6.1
-     confirme) está dentro de context.projectRootPath — external_directory
-     ya lo gatea a nivel de motor, pero una segunda capa a nivel de
-     PolicyRule es coherente con "defensa en profundidad" (mismo
-     criterio que EXECUTION_TIMEOUT_MS, Fase 5.9c). Deny-list explícita
-     de rutas sensibles dentro del proyecto (.env, migraciones ya
-     aplicadas, .git/) — a definir con Santiago, no inventada acá.
+6.3  PolicyRule real para "edit", acotada con la evidencia de 6.1 —
+     forma propuesta completa en §8 (clase, deny-list, cambio de
+     composition root); solo falta reemplazar
+     EDIT_TARGET_PATH_METADATA_KEY por el nombre real que confirme 6.1
+     y aprobar la deny-list de §8.1 con Santiago.
 
 6.4  Reactivar "edit" en DISABLED_TOOLS + permission: { edit: "ask" }
      explícito (ya está, ver Fase 5.9b) — verificación end-to-end real
@@ -309,7 +306,135 @@ siendo la única fuente de verdad de qué se aprobó y por qué.
      de permiso "edit", sin verificar).
 ```
 
-## 8. Qué NO decide este documento
+## 8. Propuesta formal — forma concreta del código, pendiente solo de 6.1
+
+Resuelve, con evidencia ya disponible sin infraestructura real, todo lo
+que **no** depende de la forma exacta de `metadata` — para que 6.3 sea
+literalmente "confirmar una constante + correr los tests", no un diseño
+desde cero una vez que llegue la evidencia de 6.1.
+
+### 8.1 Deny-list real propuesta para `guerrero-dev`
+
+Enumerada contra el repo real (no genérica), candidata a `SENSITIVE_PATH_DENYLIST`
+en 6.3 — aprobación final de Santiago, esto es propuesta, no decisión:
+
+```text
+.env, .env.local              secretos reales (no versionados — .gitignore
+                               los excluye, pero siguen siendo archivos reales
+                               en disco que edit podría leer/sobrescribir)
+.git/                         integridad del repositorio; ninguna tool de
+                               "edición de archivos" tiene motivo legítimo de
+                               tocar objetos internos de git
+pnpm-lock.yaml                una edición manual desincroniza el lockfile de
+                               package.json real sin pasar por pnpm
+packages/infrastructure/src/database/migrations/*.sql (ya aplicadas:
+  0001_init.sql, 0002_memory_tables.sql, 0003_memory_embeddings_vector.sql,
+  0004_project_profiles.sql)
+                               regla explícita ya vigente en CLAUDE.md:
+                               "nunca edites una migración ya aplicada —
+                               agregá una nueva"; una PolicyRule real es la
+                               forma de hacer cumplir esa regla ya escrita,
+                               no una nueva invención
+```
+
+Deliberadamente **no** incluye una entrada genérica para "toda la carpeta
+`migrations/`" — una migración nueva (todavía no aplicada) sí debe poder
+crearse/editarse; la deny-list es por archivo ya existente en la lista de
+arriba, no por directorio completo. Confirmar en 6.3 si hace falta un
+mecanismo más fino (p. ej. mirar el estado real de `pnpm migrate`) o si
+alcanza con la lista estática — sin evidencia de que la lista estática no
+alcance, no se complica más.
+
+### 8.2 `isPathWithinRoot` ya existe — pero `agent-core` no puede importarla tal cual
+
+`packages/infrastructure/src/filesystem/isPathWithinRoot.ts` (Fase 5
+unificada) ya resuelve exactamente la validación de contención de paths
+que 6.3 necesita (usa `path.relative`, no comparación de prefijo de
+string — evita el falso positivo `/repo/project` vs
+`/repo/project-other`). Pero `agent-core/package.json` solo declara
+`application`/`domain`/`shared` como dependencias — agregar
+`@guerrero-dev/infrastructure` sería un cambio de arquitectura real (hoy
+`agent-core` no depende de ningún adapter concreto), no una importación
+trivial. `isPathWithinRoot` en sí es una función pura sin I/O (solo usa
+`node:path`, nada de Drizzle/git/fs) — **propuesta: duplicarla
+literalmente dentro de `agent-core/src/rules/` (mismo criterio ya usado
+en el propio código: preferir una función pura chica duplicada antes que
+una dependencia nueva entre paquetes "hermanos" de la capa de
+implementaciones)**, no importarla ni mover el archivo de paquete.
+
+### 8.3 Forma propuesta de la `PolicyRule` (pseudocódigo, NO implementar todavía)
+
+```typescript
+// packages/agent-core/src/rules/AllowScopedMutationRule.ts (nombre propuesto)
+// Reemplaza a AllowReadRule en el composition root (decisión (a) de §5) —
+// no convive con ella (se anularían bajo AND).
+
+const READ_ONLY_TOOL_NAME = "read";
+
+// PENDIENTE DE 6.1 — no adivinar este valor sin evidencia real.
+// Hipótesis sin confirmar (§4): "file" o "filePath".
+const EDIT_TARGET_PATH_METADATA_KEY = "TODO_confirmar_en_6.1";
+
+const SENSITIVE_PATH_DENYLIST = [/* ver §8.1, resuelta contra projectRootPath */];
+
+export class AllowScopedMutationRule implements PolicyRule {
+  readonly name = "allow-scoped-mutation";
+  private readonly allowedReadOnlyTools: ReadonlySet<string>;
+
+  constructor(additionalReadOnlyTools: readonly string[] = []) {
+    this.allowedReadOnlyTools = new Set([READ_ONLY_TOOL_NAME, ...additionalReadOnlyTools]);
+  }
+
+  evaluate(request: ToolRequest, context: PolicyContext): PolicyDecision {
+    if (this.allowedReadOnlyTools.has(request.toolName)) {
+      return approve(request, "lectura sin efectos secundarios");
+    }
+    if (request.toolName === "edit") {
+      return this.evaluateEdit(request, context);
+    }
+    return deny(request, `"${request.toolName}" fuera de alcance de allow-scoped-mutation`);
+  }
+
+  private evaluateEdit(request: ToolRequest, context: PolicyContext): PolicyDecision {
+    const targetPath = request.input[EDIT_TARGET_PATH_METADATA_KEY];
+    if (typeof targetPath !== "string") {
+      return deny(request, "no se pudo determinar el archivo objetivo (fail-closed)");
+    }
+    const resolved = resolve(context.projectRootPath, targetPath);
+    if (!isPathWithinRoot(context.projectRootPath, resolved)) {
+      return deny(request, "fuera de projectRootPath");
+    }
+    if (isSensitivePath(resolved)) {
+      return deny(request, "ruta en la deny-list (ver §8.1)");
+    }
+    return approve(request, "edición dentro del proyecto, fuera de la deny-list");
+  }
+}
+```
+
+Reemplaza a `AllowReadRule` (no la extiende) porque el invariante de
+nombre de esa clase ("herramientas SIN efectos secundarios") dejaría de
+cumplirse si ganara una rama de mutación — mismo razonamiento de §5.
+`AllowReadRule.ts`/`.test.ts` no se borran solos: la migración de uno a
+otro es parte de 6.3, con sus propios tests de regresión (que `read` y
+las tools de Code Intelligence sigan aprobándose igual que hoy).
+
+### 8.4 Cambio propuesto en el composition root (`apps/cli/src/commands/agent.ts`)
+
+```typescript
+// Antes (hoy, post 6n):
+const policyEngine = new PolicyEvaluator();
+policyEngine.addRule(new AllowReadRule(CODE_INTELLIGENCE_PREFIXED_TOOL_NAMES));
+
+// Propuesto (6.3, solo tras 6.1):
+const policyEngine = new PolicyEvaluator();
+policyEngine.addRule(new AllowScopedMutationRule(CODE_INTELLIGENCE_PREFIXED_TOOL_NAMES));
+```
+
+Más `edit: true` en `DISABLED_TOOLS` (6.4) y sin cambios en `PERMISSION`
+(`edit: "ask"` ya está desde 5.9b, confirmado real en este archivo).
+
+## 9. Qué NO decide este documento
 
 - No autoriza ninguna implementación — ni siquiera 6.1 requiere código,
   pero si el resultado de 6.1 confirma la forma esperada, 6.2/6.3 sí
@@ -318,8 +443,12 @@ siendo la única fuente de verdad de qué se aprobó y por qué.
 - No decide entre los caminos (a)/(b) de §5 — deja la recomendación
   explícita ((a) primero) pero la decisión final es de Santiago.
 - No amplía `AllowReadRule` ni toca `PolicyEvaluator` — cero cambios de
-  código en este incremento.
-- No define la deny-list de rutas sensibles de 6.3 (`.env`, migraciones,
-  `.git/`) — es una decisión de producto/seguridad real, a acordar con
-  evidencia de qué archivos importan en `guerrero-dev` específicamente,
-  no una lista genérica inventada acá.
+  código en este incremento. El pseudocódigo de §8.3/§8.4 es una
+  propuesta de diseño en este documento, no un archivo `.ts` real — no
+  se creó ningún `AllowScopedMutationRule.ts` en `packages/agent-core`.
+- §8.1 propone una deny-list concreta para `guerrero-dev` (no genérica),
+  pero queda como propuesta hasta que Santiago la apruebe explícitamente
+  — este documento no la fija como decisión final.
+- No resuelve `EDIT_TARGET_PATH_METADATA_KEY` (§8.3) — ese valor sale
+  únicamente de 6.1, capturado contra el binario real; el placeholder en
+  el pseudocódigo es intencional, no un descuido.
