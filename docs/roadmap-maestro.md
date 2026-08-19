@@ -167,19 +167,28 @@ bloquea `guerrero agent run`.
 
 ### Fase 6 — Developer Tools
 
-**Estado: ⛔ No iniciada.** Git tools, edición de archivos, ejecución de
-terminal — bajo permisos explícitos. `PolicyEngine`/`PolicyRule` ya
-existen desde Fase 1 (fail-closed real, `PolicyEvaluator.ts`,
-`AllowReadRule` desde 5.13) y desde 6n/6r sí deciden algo real en el
-flujo de `guerrero agent run` — el gap de vocabulario `toolName` entre
-`PolicyRule` y las categorías de permiso de OpenCode está reconciliado
-(verificado real, ver 6r). Lo que falta para que Fase 6 tenga sentido
-ya no es un problema de wiring: es que no existe todavía ninguna
-`PolicyRule` que apruebe `edit`/`bash` (correctamente — sin capacidades
-reales de Developer Tools, no hay nada legítimo que aprobar ahí).
-Distinto de Code Intelligence (Fase 4): esa responde "¿qué existe y qué
-significa?", esto responde "haz X sobre el sistema" — no deben
-mezclarse.
+**Estado: ⛔ No iniciada (diseño abierto).** Git tools, edición de
+archivos, ejecución de terminal — bajo permisos explícitos.
+`PolicyEngine`/`PolicyRule` ya existen desde Fase 1 (fail-closed real,
+`PolicyEvaluator.ts`, `AllowReadRule` desde 5.13) y desde 6n/6r sí
+deciden algo real en el flujo de `guerrero agent run` — el gap de
+vocabulario `toolName` entre `PolicyRule` y las categorías de permiso de
+OpenCode está reconciliado (verificado real, ver 6r). Lo que falta para
+que Fase 6 tenga sentido ya no es un problema de wiring: es que no
+existe todavía ninguna `PolicyRule` que apruebe `edit`/`bash`
+(correctamente — sin capacidades reales de Developer Tools, no hay nada
+legítimo que aprobar ahí). Distinto de Code Intelligence (Fase 4): esa
+responde "¿qué existe y qué significa?", esto responde "haz X sobre el
+sistema" — no deben mezclarse.
+
+Primera ronda de diseño publicada en `docs/fase-6-developer-tools-map.md`
+(sin código): confirma que `edit`/`bash` no son problema de wiring, deja
+explícito que "git tools" no es una categoría de permiso propia (es un
+subconjunto de `bash`), y bloquea cualquier `PolicyRule` de mutación real
+hasta capturar la forma exacta de `permission.asked.properties.metadata`
+para `edit` en una máquina con Ollama + `opencode serve` reales (backlog
+§7 ítem 8). `bash` queda fuera del primer incremento propuesto por
+riesgo de ejecución arbitraria muy superior a `edit`.
 
 ### Fase 7 — Autonomous Workflows
 
@@ -957,9 +966,22 @@ entrada propia fue 6b. Ver también el resumen de estado real en §3.
    qué el package sigue siendo placeholder a propósito, con referencia a
    `fase-6-to-7-reconciliation.md` §3. Build/lint limpios.
 
-8. DIFERIDO, sin evidencia todavía — Fase 6 (Developer Tools), Fase 7
-   (Autonomous Workflows): no se auditan hasta que 5.1-5.5 den un loop
-   real que las necesite.
+8. AUDITORÍA ABIERTA (diseño, sin código) — Fase 6 (Developer Tools):
+   con Fase 5 unificada cerrada (§3), la precondición de este ítem ya se
+   cumplió. Primera ronda de diseño publicada en
+   `docs/fase-6-developer-tools-map.md` — confirma que el wiring ya está
+   resuelto (mismo puente de `OpenCodeExecutionEngine.handlePermissionEvents()`
+   que ya intercepta cualquier categoría real de permiso) y que lo que
+   falta es evidencia real (forma de `permission.asked.properties.metadata`
+   para `edit`, capturable solo en una máquina con Ollama + `opencode
+   serve` reales) más una decisión de diseño sobre cómo componer una
+   `PolicyRule` de mutación con `AllowReadRule` bajo el modelo AND actual
+   de `PolicyEvaluator` — ver ese documento §5 para el detalle. Sin
+   código todavía; siguiente paso real es 6.1 (captura de evidencia),
+   pendiente de Santiago.
+
+   Fase 7 (Autonomous Workflows) sigue diferida sin evidencia — depende
+   de que Fase 6 dé herramientas reales primero.
 
 9. EVOLUTIVO, sin evidencia todavía — Fase 8 (Personal Engineering
    Profile), Fase 9 (Continuous Learning), MemoryEmbedding
