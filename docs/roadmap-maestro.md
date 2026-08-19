@@ -577,6 +577,56 @@ implementación todavía, solo ordenado para cuando se retome.
    intacto (verificado a mano después de cada corrida). Ver commit de
    esta sesión.
 
+6n. CERRADO (código) / NO ALCANZABLE EN RUNTIME todavía — Fase 5.13:
+   primera `PolicyRule` real y concreta (`AllowReadRule`,
+   `packages/agent-core/src/rules/`). Cierra por el lado del código la
+   limitación anotada al cerrar 6c: `PolicyEvaluator` se construía sin
+   ninguna regla, y sin reglas deniega todo (fail-closed). `AllowReadRule`
+   aprueba `toolName === "read"` — lectura sin mutación del workspace, sin
+   ejecución, sin salida a red — y deniega explícitamente cualquier otra
+   herramienta.
+
+   Decisión de diseño no obvia, y el motivo por el que la regla es más
+   larga de lo que parece: `PolicyEvaluator.evaluate()` agrega con
+   semántica AND y early exit (todas las reglas tienen que aprobar; la
+   primera que deniega gana). Bajo esa semántica, una regla que "solo
+   opine" sobre `read` y apruebe lo demás, siendo la única registrada,
+   equivale a aprobar todo — deshace el fail-closed en vez de acotarlo.
+   Por eso la allow-list vive dentro de la regla y el deny de lo demás es
+   explícito.
+
+   Limitación de composición, documentada en el JSDoc de la clase, no
+   escondida: reglas *restrictoras* (deniegan un caso, aprueban el resto —
+   p. ej. "denegar `read` fuera de `projectRootPath`") componen bien con
+   esta bajo AND. Dos *allow-lists parciales* (p. ej. un `AllowGlobRule`
+   con el mismo patrón) NO componen: registradas juntas se anulan. Para
+   habilitar otra herramienta hay que ampliar la allow-list de
+   `AllowReadRule`, no agregar una segunda regla allow. Soportar
+   allow-lists independientes exigiría rediseñar la agregación de
+   `IPolicyEngine` (modelo tipo IAM: deny explícito gana; sin deny,
+   cualquier allow explícito gana; si nadie opina, fail-closed) — fuera de
+   alcance acá, sin un segundo caso real que lo justifique.
+
+   **Honestidad de alcance, verificada, no asumida**: hoy esta regla no
+   decide nada en el flujo real de `guerrero agent run`, y por eso NO se
+   registra en el composition root (`apps/cli/src/commands/agent.ts`).
+   `OpenCodeExecutionEngine.handlePermissionEvents()` solo produce
+   `toolName` con las categorías de permiso de OpenCode (`edit`, `bash`,
+   `webfetch`, `external_directory`), nunca `read`; y el bucle de política
+   de `AgentOrchestrator.run()` está muerto con el motor OpenCode porque
+   `ToolSelector.selectToolSteps()` siempre filtra a `[]` (los steps de
+   `OpenCodeExecutionEngine.plan()` no llevan `toolRequest`). Registrarla
+   sería seguro pero inútil, y sugeriría una cobertura de lectura
+   inexistente. Tampoco valida QUÉ se lee: ignora `request.input` y
+   `context.projectRootPath`, así que leer `.env` o un archivo fuera del
+   proyecto pasa la regla — trabajo de una regla restrictora futura.
+   Pendiente asociado, a decidir el día que el motor exponga tool calls
+   granulares: cuál es el vocabulario canónico de `toolName` (categorías de
+   OpenCode vs. nombres internos como `read`), hoy divergentes. Cubierto
+   por `AllowReadRule.test.ts` (5 casos, incluyendo `edit`/`bash` reales y
+   la comparación exacta sensible a mayúsculas) más un caso end-to-end en
+   `PolicyEvaluator.test.ts` con la regla real registrada en el motor.
+
 7. HOUSEKEEPING (no bloqueante, cuando convenga) — corregir el
    comentario desactualizado de packages/project-intelligence/src/index.ts
    (dice "implementación real llega en Fase 5-6"; la implementación
