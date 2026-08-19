@@ -70,6 +70,27 @@ import { createCliContext } from "../context.js";
  * en absoluto (p. ej. `gemma3:4b`), Ollama devuelve un 400 explícito
  * ("does not support tools") que se propaga limpio como `Estado: failed`
  * (fix de Fase 5.7b) — nunca degrada en silencio a texto plano.
+ *
+ * Fase 5.9b: brecha de seguridad real encontrada al verificar 5.9 con
+ * `qwen2.5:7b-instruct-q4_K_M` (el primer modelo que sí dispara
+ * tool-calling estructurado real): el log de `opencode serve` mostró
+ * `evaluated permission=webfetch ... action.action=allow` repetido en
+ * cada paso, sin que `OpenCodeExecutionEngine.handlePermissionEvents()`
+ * (Fase 5.5b) viera jamás un `permission.updated` para esa sesión —
+ * `IPolicyEngine.evaluate()` nunca se llamó. Causa real: sin
+ * `Config.permission` explícito, OpenCode resuelve `webfetch` a `allow`
+ * por su propio default interno y jamás emite el evento — exactamente el
+ * hueco que Fase 5.5b decía haber cerrado ("OpenCode ejecutaba tool
+ * calls sin que nuestro PolicyEngine los viera"), seguía abierto para
+ * esta categoría de tool. `permission: {edit,bash,webfetch}: "ask"`
+ * fuerza que las tres categorías reales de tool que expone el agente
+ * `build` de OpenCode (`Agent.permission`,
+ * `@opencode-ai/sdk/dist/gen/types.gen.d.ts:1407-1415`) pasen siempre
+ * por un `permission.updated` real, sin excepción — con
+ * `PolicyEvaluator` fail-closed y sin reglas (comportamiento documentado
+ * y esperado, ver `docs/roadmap-maestro.md` ítem 6c), esto deniega toda
+ * tool call real hasta que existan `PolicyRule`s, que es exactamente la
+ * garantía que esta clase dice ofrecer.
  */
 export function registerAgentCommands(program: Command): void {
   const agent = program.command("agent").description("Ejecuta al agente de Guerrero Dev");
@@ -122,6 +143,7 @@ export function registerAgentCommands(program: Command): void {
                 models: { [modelName]: { tool_call: true } },
               },
             },
+            permission: { edit: "ask", bash: "ask", webfetch: "ask" },
           },
         });
         const client = createOpencodeClient({ baseUrl: server.url });

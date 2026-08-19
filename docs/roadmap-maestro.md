@@ -344,6 +344,26 @@ implementación todavía, solo ordenado para cuando se retome.
    consistente (2/2, verificado real) — es la elección recomendada hoy
    para `agent run`. Ver commit de esta sesión.
 
+6g. CERRADO — Fase 5.9b: brecha de seguridad real, distinta del
+   síntoma de 6f. Verificando 5.9 con `qwen2.5:7b-instruct-q4_K_M` (el
+   primer modelo que sí dispara tool-calling estructurado real), el log
+   de `opencode serve` mostró `evaluated permission=webfetch ...
+   action.action=allow` repetido en cada paso — `IPolicyEngine.evaluate()`
+   nunca se llamó, `OpenCodeExecutionEngine.handlePermissionEvents()`
+   (Fase 5.5b) nunca vio un `permission.updated` para esa sesión. Causa
+   real: sin `Config.permission` explícito, OpenCode resuelve `webfetch`
+   a `allow` por su propio default interno y jamás emite el evento —
+   exactamente el hueco que Fase 5.5b decía haber cerrado ("OpenCode
+   ejecutaba tool calls sin que nuestro PolicyEngine los viera"), seguía
+   abierto para esta categoría. `permission: {edit,bash,webfetch}: "ask"`
+   fuerza que las tres categorías reales de tool del agente `build`
+   (`Agent.permission`, `@opencode-ai/sdk/dist/gen/types.gen.d.ts:1407-1415`)
+   pasen siempre por un `permission.updated` real — con `PolicyEvaluator`
+   fail-closed y sin reglas (comportamiento esperado, ítem 6c), esto
+   deniega toda tool call real hasta que existan `PolicyRule`s, que es
+   exactamente la garantía que esa clase dice ofrecer. Ver commit de
+   esta sesión.
+
 7. HOUSEKEEPING (no bloqueante, cuando convenga) — corregir el
    comentario desactualizado de packages/project-intelligence/src/index.ts
    (dice "implementación real llega en Fase 5-6"; la implementación
