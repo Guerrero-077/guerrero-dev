@@ -141,16 +141,30 @@ const EXECUTION_TIMEOUT_MS = 120_000;
  * archivo y respondió en texto (`finish: "stop"`, no `"tool-calls"`).
  *
  * `DISABLED_TOOLS` apaga exactamente las tools de escritura/red/ejecución
- * (`bash`, `edit`, `write`, `webfetch`, `websearch`, `apply_patch`) del
- * agente `build` — `read`/`glob`/`grep` (solo lectura) quedan
- * habilitadas. Esto es coherente con dónde está el proyecto hoy (Fase 5,
- * roadmap unificado — "Agent Core real, LLM conectado", sin acciones
- * reales todavía; escritura de archivos es Fase 6 — Developer Tools, no
- * iniciada) — no es una limitación arbitraria, es el alcance real de
- * esta fase. `permission: {edit,bash,webfetch}: "ask"` (Fase 5.9b) queda
- * intacto como segunda capa: si en el futuro se reactiva alguna de estas
- * tools acá sin recordar tocar este archivo, `IPolicyEngine` fail-closed
- * las sigue denegando igual.
+ * (`bash`, `write`, `webfetch`, `websearch`, `apply_patch`) del agente
+ * `build` — `read`/`glob`/`grep` (solo lectura) quedan habilitadas. Esto
+ * es coherente con dónde está el proyecto hoy (Fase 5, roadmap
+ * unificado — "Agent Core real, LLM conectado"; escritura de archivos
+ * es Fase 6 — Developer Tools) — no es una limitación arbitraria, es el
+ * alcance real de esta fase. `permission: {edit,bash,webfetch}: "ask"`
+ * (Fase 5.9b) queda intacto como segunda capa: si en el futuro se
+ * reactiva alguna de estas tools acá sin recordar tocar este archivo,
+ * `IPolicyEngine` fail-closed las sigue denegando igual.
+ *
+ * **`edit: true` (Fase 6.1, validación real)**: reactivada a propósito
+ * para que el modelo pueda intentar una edición real y dispare un
+ * `permission.asked` real de tipo `"edit"` — necesario para capturar la
+ * forma exacta de `properties.metadata`
+ * (`docs/fase-6-developer-tools-map.md` §4), evidencia que no se puede
+ * conseguir sin una máquina con Ollama + `opencode serve` reales.
+ * Seguro por construcción: `AllowScopedMutationRule.evaluateEdit()`
+ * (Fase 6.3) busca `request.input[EDIT_TARGET_PATH_METADATA_KEY]`, un
+ * centinela que no coincide con ninguna clave real todavía — cualquier
+ * intento real de `edit` se deniega por fail-closed, sin excepción,
+ * hasta que alguien reemplace ese valor a propósito con el nombre
+ * confirmado acá. Ver el log temporal de
+ * `OpenCodeExecutionEngine.handlePermissionEvents()` para capturar el
+ * evento real completo.
  *
  * **Corrección (Fase 6n) al párrafo de arriba**: "`read` nunca pasa por
  * `IPolicyEngine`" era cierto solo mientras `Config.permission` no
@@ -163,7 +177,7 @@ const EXECUTION_TIMEOUT_MS = 120_000;
  */
 const DISABLED_TOOLS = {
   bash: false,
-  edit: false,
+  edit: true, // reactivada para validación real de Fase 6.1 — ver JSDoc arriba
   write: false,
   webfetch: false,
   websearch: false,
