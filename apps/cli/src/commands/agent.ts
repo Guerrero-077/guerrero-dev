@@ -33,6 +33,14 @@ import { createCliContext } from "../context.js";
  * dato real disponible. `sessionId` es un UUID nuevo por invocación —
  * `AgentSession` no se persiste todavía (mismo estado que
  * `apps/api/src/routes/sessions.ts`), así que cada corrida es efímera.
+ *
+ * Fase 5.7: `createOpencodeServer()` recibe un `Config.provider` con
+ * Ollama como provider OpenAI-compatible custom (`npm:
+ * "@ai-sdk/openai-compatible"`, `options.baseURL` apuntando a
+ * `OLLAMA_BASE_URL` + `/v1`) — sin cuenta cloud, coherente con
+ * `docs/adr/0003-opencode-primero.md`. `OpenCodeExecutionEngine` recibe
+ * el mismo id (`OLLAMA_PROVIDER_ID`) para incluirlo en cada
+ * `session.prompt()`.
  */
 export function registerAgentCommands(program: Command): void {
   const agent = program.command("agent").description("Ejecuta al agente de Guerrero Dev");
@@ -72,9 +80,21 @@ export function registerAgentCommands(program: Command): void {
         const contextBuilder = new ContextBuilder(projectIntelligenceProvider, memoryRetriever);
         const policyEngine = new PolicyEvaluator();
 
-        server = await createOpencodeServer();
+        const OLLAMA_PROVIDER_ID = "ollama";
+        server = await createOpencodeServer({
+          config: {
+            provider: {
+              [OLLAMA_PROVIDER_ID]: {
+                npm: "@ai-sdk/openai-compatible",
+                name: "Ollama (local)",
+                options: { baseURL: new URL("/v1", config.OLLAMA_BASE_URL).toString() },
+                models: { [config.OLLAMA_DEFAULT_MODEL]: {} },
+              },
+            },
+          },
+        });
         const client = createOpencodeClient({ baseUrl: server.url });
-        const executionEngine = new OpenCodeExecutionEngine(client, policyEngine);
+        const executionEngine = new OpenCodeExecutionEngine(client, policyEngine, OLLAMA_PROVIDER_ID);
 
         const orchestrator = new AgentOrchestrator(
           executionEngine,

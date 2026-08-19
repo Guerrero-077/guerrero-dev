@@ -51,7 +51,7 @@ describe.skipIf(!RUN)("OpenCodeExecutionEngine (integration, contra un servidor 
   beforeAll(async () => {
     server = await createOpencodeServer({ hostname: "127.0.0.1", port: 41414, timeout: 20000 });
     const client = createOpencodeClient({ baseUrl: server.url });
-    engine = new OpenCodeExecutionEngine(client, approvingPolicyEngine);
+    engine = new OpenCodeExecutionEngine(client, approvingPolicyEngine, "ollama-test");
   }, 30000);
 
   afterAll(() => {

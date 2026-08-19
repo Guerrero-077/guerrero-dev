@@ -33,11 +33,15 @@ import { OpenCodeExecutionEngineError } from "./OpenCodeExecutionEngineError.js"
  * caída, servidor no arrancó) se propaga sin envolver, mismo criterio
  * "todo o nada" que el resto del repo.
  *
- * `execute()` no pasa `model` en el body de `session.prompt()` — deja
- * que OpenCode use su provider configurado por defecto.
- * `AgentTask.modelName` no tiene hoy una convención `providerID:modelID`
- * (la que exige el SDK) — no se inventa una sin evidencia de qué
- * providers va a soportar OpenCode aquí.
+ * `execute()` pasa `model: { providerID, modelID }` en el body de
+ * `session.prompt()` (Fase 5.7). `providerId` es fijo por instancia del
+ * motor (constructor) — el id bajo el que quien ensambla este motor
+ * registró un provider custom en el `Config` que le pasó a
+ * `createOpencodeServer()` (p. ej. un provider OpenAI-compatible
+ * apuntando a Ollama, ver `apps/cli/src/commands/agent.ts`). Esta clase
+ * no sabe ni le importa qué provider es en concreto — solo reenvía el
+ * id que recibió. `modelId` viene de `AgentTask.modelName`, guardado
+ * por sesión en `plan()`.
  *
  * Fase 5.5b: `execute()` corre en paralelo un listener sobre
  * `client.event.subscribe()` que intercepta cada `permission.updated`
@@ -54,14 +58,20 @@ import { OpenCodeExecutionEngineError } from "./OpenCodeExecutionEngineError.js"
  * consultar a `IPolicyEngine`, violando su garantía de fail-closed
  * reevaluado por solicitud.
  */
+interface SessionContext {
+  readonly policyContext: PolicyContext;
+  readonly modelId: string;
+}
+
 export class OpenCodeExecutionEngine implements IExecutionEngine {
   readonly name = "opencode";
 
-  private readonly policyContextsBySessionId = new Map<string, PolicyContext>();
+  private readonly sessionContextsBySessionId = new Map<string, SessionContext>();
 
   constructor(
     private readonly client: OpencodeClient,
     private readonly policyEngine: IPolicyEngine,
+    private readonly providerId: string,
   ) {}
 
   async plan(task: AgentTask): Promise<ExecutionPlan> {
@@ -77,9 +87,9 @@ export class OpenCodeExecutionEngine implements IExecutionEngine {
       );
     }
 
-    this.policyContextsBySessionId.set(response.data.id, {
-      userId: task.userId,
-      projectRootPath: task.projectRootPath,
+    this.sessionContextsBySessionId.set(response.data.id, {
+      policyContext: { userId: task.userId, projectRootPath: task.projectRootPath },
+      modelId: task.modelName,
     });
 
     return {
@@ -91,13 +101,14 @@ export class OpenCodeExecutionEngine implements IExecutionEngine {
   }
 
   async execute(plan: ExecutionPlan, _options: ExecutionOptions): Promise<ExecutionResult> {
-    const policyContext = this.policyContextsBySessionId.get(plan.id);
-    if (!policyContext) {
+    const sessionContext = this.sessionContextsBySessionId.get(plan.id);
+    if (!sessionContext) {
       throw new OpenCodeExecutionEngineError(
         "missing_policy_context",
-        `OpenCodeExecutionEngine.execute(): no hay PolicyContext para la sesión ${plan.id} — ¿se llamó a plan() primero?`,
+        `OpenCodeExecutionEngine.execute(): no hay contexto de sesión para ${plan.id} — ¿se llamó a plan() primero?`,
       );
     }
+    const { policyContext, modelId } = sessionContext;
 
     const events = await this.client.event.subscribe({ query: { directory: policyContext.projectRootPath } });
 
@@ -110,7 +121,10 @@ export class OpenCodeExecutionEngine implements IExecutionEngine {
 
     const response = await this.client.session.prompt({
       path: { id: plan.id },
-      body: { parts: [{ type: "text", text: plan.steps[0]?.description ?? "" }] },
+      body: {
+        model: { providerID: this.providerId, modelID: modelId },
+        parts: [{ type: "text", text: plan.steps[0]?.description ?? "" }],
+      },
     });
     await listening;
 

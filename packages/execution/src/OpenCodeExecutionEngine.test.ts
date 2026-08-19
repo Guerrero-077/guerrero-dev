@@ -85,6 +85,8 @@ function fakePolicyEngine(decision: PolicyDecision): { engine: IPolicyEngine; ca
   };
 }
 
+const TEST_PROVIDER_ID = "ollama-test";
+
 const APPROVED_DECISION: PolicyDecision = {
   toolRequestId: "cualquiera",
   allowed: true,
@@ -127,7 +129,7 @@ describe("OpenCodeExecutionEngine.plan()", () => {
       create: async () => ({ data: { id: "session-abc" }, error: undefined }),
     });
     const { engine: policyEngine } = fakePolicyEngine(APPROVED_DECISION);
-    const engine = new OpenCodeExecutionEngine(client, policyEngine);
+    const engine = new OpenCodeExecutionEngine(client, policyEngine, TEST_PROVIDER_ID);
 
     const plan = await engine.plan(buildTask({ projectRootPath: "/home/user/proyecto" }));
 
@@ -141,7 +143,7 @@ describe("OpenCodeExecutionEngine.plan()", () => {
       create: async () => ({ data: undefined, error: { message: "Bad Request" } }),
     });
     const { engine: policyEngine } = fakePolicyEngine(APPROVED_DECISION);
-    const engine = new OpenCodeExecutionEngine(client, policyEngine);
+    const engine = new OpenCodeExecutionEngine(client, policyEngine, TEST_PROVIDER_ID);
 
     const error = await engine.plan(buildTask()).catch((thrown: unknown) => thrown);
 
@@ -157,7 +159,7 @@ describe("OpenCodeExecutionEngine.plan()", () => {
       },
     });
     const { engine: policyEngine } = fakePolicyEngine(APPROVED_DECISION);
-    const engine = new OpenCodeExecutionEngine(client, policyEngine);
+    const engine = new OpenCodeExecutionEngine(client, policyEngine, TEST_PROVIDER_ID);
 
     await expect(engine.plan(buildTask())).rejects.toBe(networkError);
   });
@@ -167,7 +169,7 @@ describe("OpenCodeExecutionEngine.execute() — sin plan() previo", () => {
   it("lanza OpenCodeExecutionEngineError con reason missing_policy_context", async () => {
     const { client } = fakeClient({});
     const { engine: policyEngine } = fakePolicyEngine(APPROVED_DECISION);
-    const engine = new OpenCodeExecutionEngine(client, policyEngine);
+    const engine = new OpenCodeExecutionEngine(client, policyEngine, TEST_PROVIDER_ID);
     const orphanPlan: ExecutionPlan = {
       id: "session-nunca-planeada",
       taskId: "task-1",
@@ -183,25 +185,32 @@ describe("OpenCodeExecutionEngine.execute() — sin plan() previo", () => {
 });
 
 async function planned(client: OpencodeClient, policyEngine: IPolicyEngine, task = buildTask()) {
-  const engine = new OpenCodeExecutionEngine(client, policyEngine);
+  const engine = new OpenCodeExecutionEngine(client, policyEngine, TEST_PROVIDER_ID);
   const plan = await engine.plan(task);
   return { engine, plan };
 }
 
 describe("OpenCodeExecutionEngine.execute() — respuesta del prompt", () => {
-  it("envía session.prompt() con path.id=plan.id y el texto de plan.steps[0].description", async () => {
+  it("envía session.prompt() con path.id=plan.id, model.providerID/modelID y el texto de plan.steps[0].description", async () => {
     const { client, calls } = fakeClient({
       create: async () => ({ data: { id: "session-abc" }, error: undefined }),
     });
     const { engine: policyEngine } = fakePolicyEngine(APPROVED_DECISION);
-    const { engine, plan } = await planned(client, policyEngine);
+    const { engine, plan } = await planned(
+      client,
+      policyEngine,
+      buildTask({ modelName: "qwen2.5-coder:7b" }),
+    );
 
     await engine.execute(plan, {});
 
     expect(calls.prompt).toEqual([
       {
         path: { id: "session-abc" },
-        body: { parts: [{ type: "text", text: "arregla el bug en el login" }] },
+        body: {
+          model: { providerID: TEST_PROVIDER_ID, modelID: "qwen2.5-coder:7b" },
+          parts: [{ type: "text", text: "arregla el bug en el login" }],
+        },
       },
     ]);
   });
