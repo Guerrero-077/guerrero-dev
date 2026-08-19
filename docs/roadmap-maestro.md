@@ -627,6 +627,123 @@ implementación todavía, solo ordenado para cuando se retome.
    la comparación exacta sensible a mayúsculas) más un caso end-to-end en
    `PolicyEvaluator.test.ts` con la regla real registrada en el motor.
 
+6o. CERRADO — Fase 5.14: el contexto real (Memory + Project
+   Intelligence) ya llega al agente que responde. Auditando el estado de
+   la Fase 5 para decidir si se podía cerrar, se confirmó con lectura
+   directa de código un gap real, anotado desde antes por el propio
+   JSDoc de `AgentOrchestrator` ("conectarla al plan real sigue siendo
+   Fase 5.5") y nunca tocado por ninguno de los 13 incrementos previos
+   (5.7-5.13, todos centrados en otros problemas reales de la
+   integración OpenCode): `run()` construía `BuiltContext` vía
+   `ContextBuilder.build()` (Memory + Project Intelligence reales,
+   contra Postgres/pgvector) pero solo lo usaba en una llamada
+   standalone a `ILLMProvider.generate()` cuyo resultado
+   (`ExecutionResult.llmResponse`) no consumía nadie — verificado
+   repo-wide antes de tocar nada. El plan real que ejecutaba OpenCode
+   nunca veía ese contexto: `session.prompt()` salía con
+   `task.instruction` pelado.
+
+   Mecanismo real, verificado contra el binario `opencode serve` en
+   vivo (mismo rigor que 5.9d, no solo los tipos npm — acá, a
+   diferencia de los eventos de permiso, el paquete SÍ coincide con el
+   binario): `session.prompt()` acepta `body.system?: string`,
+   confirmado tanto en el spec OpenAPI real (`GET /doc`) como en
+   `SessionPromptData.body.system` de
+   `@opencode-ai/sdk/dist/gen/types.gen.d.ts`. No hizo falta reordenar
+   el composition root ni usar `Config.agent.build.prompt` (ese es a
+   nivel servidor completo, no por-request, y su semántica ni siquiera
+   está documentada en el spec).
+
+   `ExecutionOptions` (dominio) ganó `systemPrompt?: string` — único
+   canal por-request disponible entre `AgentOrchestrator` y
+   `IExecutionEngine.execute()` (el `ExecutionPlan` lo produce el
+   propio motor, no se le puede inyectar sin fabricar estado de dominio
+   ajeno). `AgentOrchestrator.run()` dejó de llamar a
+   `ILLMProvider.generate()` — pasa `{...options, systemPrompt:
+   context.systemPrompt}` a `execute()`, con el contexto pisando
+   deliberadamente cualquier `systemPrompt` que traiga el caller.
+   `ILLMProvider` dejó de ser dependencia del constructor (el puerto y
+   `OllamaProvider` siguen existiendo, sin consumidor real hoy).
+   `ExecutionResult.llmResponse` se eliminó del dominio (cero
+   consumidores). `OpenCodeExecutionEngine.execute()` manda
+   `options.systemPrompt` como `body.system` solo si viene definido —
+   sin contexto, el body sale idéntico al de antes de este fix (ni
+   siquiera con la clave en `undefined`, verificado con un assert
+   explícito de ausencia de clave — `toEqual` de Vitest ignora claves
+   `undefined`).
+
+   `apps/cli/src/commands/agent.ts` perdió la instanciación de
+   `OllamaProvider` (sin otro consumidor en el archivo) y el
+   composition root pasó a construir `AgentOrchestrator` con 3
+   argumentos. `.env.example`/`.env` actualizados: `OLLAMA_DEFAULT_MODEL`
+   pasa a ser el único consumidor real de esa variable (ya no hay una
+   segunda inferencia de texto plano), así que el default cambia de
+   `gemma3:4b` a `qwen2.5:7b-instruct-q4_K_M` (el único modelo con
+   tool-calling confiable confirmado en este repo, Fase 5.9) — con
+   `gemma3:4b` como default, `agent run` sin `--model` fallaba siempre.
+
+   Tests: `AgentOrchestrator.test.ts` reescrito (8 tests, antes 7) — se
+   eliminó el test que fijaba la llamada a `generate()`; los 2 tests de
+   "falla el LLM" se reemplazaron por sus equivalentes de "falla
+   `ContextBuilder.build()`" (mismo criterio todo-o-nada, sobre el
+   fallo real que queda en ese punto del flujo); 2 tests nuevos
+   verifican, con un `ContextBuilder` real (no mockeado) y fixtures de
+   `ProjectProfile`/memoria reales, que el `systemPrompt` completo y
+   exacto llega a `execute()`, y que gana sobre cualquier
+   `options.systemPrompt` del caller. `OpenCodeExecutionEngine.test.ts`
+   ganó un test de ausencia de `body.system` (explícito, no solo
+   `undefined`) y uno de presencia con el contexto real. 21+8 tests
+   nuevos/modificados, sin regresiones en el resto de la suite.
+
+   **Verificado real, end-to-end** — con logging de debug temporal (no
+   commiteado) en dos puntos: `options.systemPrompt` justo antes de
+   `session.prompt()`, y el evento `permission.asked` crudo. Confirmado
+   que `options.systemPrompt` llega intacto a `OpenCodeExecutionEngine`
+   con el texto exacto producido por `ContextBuilder`. Para confirmar
+   que el binario real reenvía `body.system` a Ollama (no solo que el
+   SDK lo acepta), se interceptó el tráfico saliente con un proxy HTTP
+   local (`OLLAMA_BASE_URL` apuntado a él por una sola corrida):
+   `POST /v1/chat/completions` mostró el `role: "system"` con nuestra
+   línea (`"Eres el agente de Guerrero Dev trabajando en el proyecto
+   f4634eac-…"`) concatenada, verbatim, al final del system prompt
+   propio de OpenCode (persona + `AGENTS.md` completo). El canal está
+   probado de punta a punta con evidencia de red real, no solo de tipos.
+
+   Lo que esto NO prueba — y es un hallazgo real, separado, que quedó
+   expuesto al intentar la verificación conversacional ingenua ("sin
+   usar ninguna herramienta, repetime el proyecto en el que estás
+   trabajando"): con `qwen2.5:7b-instruct-q4_K_M`, una línea de contexto
+   al final de un system prompt de varios miles de tokens no siempre se
+   prioriza en la respuesta — el modelo contestó "no me diste ningún
+   proyecto" pese a que la línea estaba ahí, confirmado por el proxy en
+   la misma corrida. Ya estaba anotado como fuera de alcance de este
+   incremento en el JSDoc de `ContextBuilder` ("la forma final de
+   convertir `ProjectProfile`/memorias en texto depende de cómo responda
+   un LLM real — Fase 5.5"): 5.14 cierra el transporte, no la calidad de
+   respuesta de un modelo 7B cuantizado ante un system prompt largo.
+   Ver 6p para un segundo hallazgo real (no relacionado al transporte)
+   encontrado en la misma sesión de verificación.
+
+6p. ENCONTRADO, no arreglado — `read` alucina rutas absolutas en tool
+   calls reales de `qwen2.5:7b-instruct-q4_K_M`. Al intentar el caso de
+   regresión de 6o ("leé el package.json de la raíz y decime las
+   dependencias") contra el proyecto real de este propio repo, el
+   modelo pidió leer `C:\path\to\your\project\package.json` y, en un
+   segundo intento, `C:\root\package.json` — ninguna es la ruta real
+   (`C:\Dev\agente\guerrero-dev`, presente y correcta en el bloque
+   `<env>` que el propio OpenCode antepone al system prompt, confirmado
+   con el mismo proxy de 6o). `external_directory` (Fase 5.5b/5.9b)
+   denegó ambos intentos correctamente — el fail-closed funcionó como
+   diseño, esto no es un agujero de seguridad. Es una limitación de
+   fiabilidad del modelo en tool-calling con rutas absolutas reales,
+   reproducible en 2/2 intentos, no un efecto de 5.14 (el mecanismo de
+   contexto no participa en cómo el modelo arma los argumentos de una
+   tool call). Nada tocado todavía: no hay evidencia de si la causa es
+   el propio modelo (7B cuantizado, conocido por copiar valores de
+   ejemplo de un schema en vez de sustituirlos), el prompt de entorno de
+   OpenCode, o algo combinable con un modelo más grande — decisión y
+   alcance pendientes de una auditoría futura, no de un fix reflejo acá.
+
 7. HOUSEKEEPING (no bloqueante, cuando convenga) — corregir el
    comentario desactualizado de packages/project-intelligence/src/index.ts
    (dice "implementación real llega en Fase 5-6"; la implementación

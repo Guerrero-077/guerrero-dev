@@ -43,6 +43,24 @@ import { OpenCodeExecutionEngineError } from "./OpenCodeExecutionEngineError.js"
  * id que recibió. `modelId` viene de `AgentTask.modelName`, guardado
  * por sesión en `plan()`.
  *
+ * Fase 5.14: `execute()` reenvía `options.systemPrompt` como `body.system`
+ * de `session.prompt()` cuando viene. Es el canal por el que el contexto
+ * real de `ContextBuilder` (Memory + Project Intelligence, armado en
+ * `AgentOrchestrator.run()`) llega por fin al LLM que corre la task —
+ * antes se construía y se tiraba, y el prompt salía con el
+ * `task.instruction` pelado. `system` es un campo real del binario:
+ * verificado en el `GET /doc` en vivo de `opencode serve` y coincidente
+ * con `SessionPromptData.body.system` de
+ * `@opencode-ai/sdk/dist/gen/types.gen.d.ts` — acá, a diferencia de los
+ * eventos de permiso de Fase 5.9d, el paquete npm y el binario SÍ
+ * coinciden. Se descartaron dos alternativas: `Config.agent.build.prompt`
+ * (es a nivel servidor entero, no por-request, y su semántica ni siquiera
+ * está documentada en el spec) y meter el contexto como una parte de texto
+ * extra en `parts` (lo mezclaría con la instrucción del usuario, que es
+ * justamente lo que un system prompt separa). Sin `options.systemPrompt`,
+ * el body sale idéntico al de antes de esta fase — sin la clave, no con
+ * la clave en `undefined`.
+ *
  * Fase 5.5b: `execute()` corre en paralelo un listener sobre
  * `client.event.subscribe()` que intercepta cada `permission.updated`
  * de esta sesión, lo traduce a un `ToolRequest` real y lo evalúa contra
@@ -246,6 +264,10 @@ export class OpenCodeExecutionEngine implements IExecutionEngine {
           path: { id: plan.id },
           body: {
             model: { providerID: this.providerId, modelID: modelId },
+            // Spread condicional (mismo patrón que `output` más abajo): sin
+            // `options.systemPrompt` el body queda EXACTAMENTE como antes de
+            // Fase 5.14 — ni siquiera con la clave en `undefined`.
+            ...(options.systemPrompt !== undefined ? { system: options.systemPrompt } : {}),
             parts: [{ type: "text", text: plan.steps[0]?.description ?? "" }],
           },
           signal: controller.signal,

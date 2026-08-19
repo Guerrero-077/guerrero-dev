@@ -226,7 +226,7 @@ async function planned(client: OpencodeClient, policyEngine: IPolicyEngine, task
 }
 
 describe("OpenCodeExecutionEngine.execute() — respuesta del prompt", () => {
-  it("envía session.prompt() con path.id=plan.id, model.providerID/modelID y el texto de plan.steps[0].description", async () => {
+  it("envía session.prompt() con path.id=plan.id, model.providerID/modelID y el texto de plan.steps[0].description — sin body.system si no vino options.systemPrompt", async () => {
     const { client, calls } = fakeClient({
       create: async () => ({ data: { id: "session-abc" }, error: undefined }),
     });
@@ -244,6 +244,45 @@ describe("OpenCodeExecutionEngine.execute() — respuesta del prompt", () => {
         path: { id: "session-abc" },
         body: {
           model: { providerID: TEST_PROVIDER_ID, modelID: "qwen2.5-coder:7b" },
+          parts: [{ type: "text", text: "arregla el bug en el login" }],
+        },
+        signal: expect.any(AbortSignal),
+      },
+    ]);
+    // `toEqual` ignora claves cuyo valor es `undefined`, así que por sí solo
+    // NO distingue "sin clave `system`" de "`system: undefined`". La
+    // diferencia importa: la garantía de Fase 5.14 es que sin contexto el
+    // body sale idéntico al de antes, no "casi idéntico".
+    const [promptCall] = calls.prompt as [{ body: Record<string, unknown> }];
+    expect("system" in promptCall.body).toBe(false);
+  });
+
+  it("con options.systemPrompt, lo manda como body.system de session.prompt() — el canal real por el que el contexto llega al modelo (Fase 5.14)", async () => {
+    const systemPrompt = [
+      "Eres el agente de Guerrero Dev trabajando en el proyecto project-1.",
+      "",
+      "Tecnologías: TypeScript.",
+    ].join("\n");
+    const { client, calls } = fakeClient({
+      create: async () => ({ data: { id: "session-abc" }, error: undefined }),
+    });
+    const { engine: policyEngine } = fakePolicyEngine(APPROVED_DECISION);
+    const { engine, plan } = await planned(
+      client,
+      policyEngine,
+      buildTask({ modelName: "qwen2.5-coder:7b" }),
+    );
+
+    await engine.execute(plan, { systemPrompt });
+
+    expect(calls.prompt).toEqual([
+      {
+        path: { id: "session-abc" },
+        body: {
+          model: { providerID: TEST_PROVIDER_ID, modelID: "qwen2.5-coder:7b" },
+          system: systemPrompt,
+          // `parts` sigue llevando SOLO la instrucción del usuario: el contexto
+          // va por `system`, separado, no concatenado al pedido real.
           parts: [{ type: "text", text: "arregla el bug en el login" }],
         },
         signal: expect.any(AbortSignal),

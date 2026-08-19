@@ -7,6 +7,4 @@ export interface ExecutionResult {
   output?: string;
   errorMessage?: string;
   finishedAt: Date;
-  /** Respuesta cruda del LLM para este AgentTask (Fase 5.2) — todavía no alimenta plan/execute, ver Fase 5.5. */
-  llmResponse?: string;
 }

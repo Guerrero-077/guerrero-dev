@@ -11,7 +11,6 @@ import {
   DrizzleProjectIntelligenceRepository,
   loadConfig,
   OllamaEmbeddingProvider,
-  OllamaProvider,
 } from "@guerrero-dev/infrastructure";
 import { createOpencodeClient, createOpencodeServer } from "@opencode-ai/sdk";
 import { createCliContext } from "../context.js";
@@ -120,8 +119,8 @@ const MAX_AGENT_STEPS = 6;
 
 /**
  * Primer composition root real (Fase 5.6): cablea de punta a punta las
- * piezas ya reales de Fase 5.1-5.5b — `OllamaProvider` (LLM),
- * `ContextBuilder` (Memory + Project Intelligence, con sus
+ * piezas ya reales de Fase 5.1-5.5b — `ContextBuilder` (Memory +
+ * Project Intelligence, con sus
  * dependencias reales de Drizzle/Ollama), `PolicyEvaluator`
  * (`IPolicyEngine`, sin reglas registradas — fail-closed a propósito,
  * ver JSDoc de `PolicyEvaluator`) y `OpenCodeExecutionEngine` (levanta
@@ -193,6 +192,16 @@ const MAX_AGENT_STEPS = 6;
  * y esperado, ver `docs/roadmap-maestro.md` ítem 6c), esto deniega toda
  * tool call real hasta que existan `PolicyRule`s, que es exactamente la
  * garantía que esta clase dice ofrecer.
+ *
+ * Fase 5.14: `OllamaProvider` desaparece de este composition root. No es
+ * una regresión: `AgentOrchestrator` ya no hace una inferencia propia
+ * (era una llamada standalone a `ILLMProvider.generate()` cuyo resultado
+ * nadie leía). El único LLM que corre la task es el que invoca OpenCode
+ * vía el `Config.provider` de acá arriba — el mismo modelo, el mismo
+ * `OLLAMA_BASE_URL`, una sola inferencia. El contexto real de
+ * `ContextBuilder` ahora llega a ese modelo como `body.system` de
+ * `session.prompt()` (ver `ExecutionOptions.systemPrompt` y el JSDoc de
+ * `OpenCodeExecutionEngine`), que es lo que 5.2 prometía y no cumplía.
  */
 export function registerAgentCommands(program: Command): void {
   const agent = program.command("agent").description("Ejecuta al agente de Guerrero Dev");
@@ -217,7 +226,6 @@ export function registerAgentCommands(program: Command): void {
         const modelName = options.model ?? config.OLLAMA_DEFAULT_MODEL;
         const db = createDrizzleClient(ctx.pool);
 
-        const llmProvider = new OllamaProvider(config.OLLAMA_BASE_URL);
         const embeddingProvider = new OllamaEmbeddingProvider(
           config.OLLAMA_BASE_URL,
           config.OLLAMA_EMBEDDING_MODEL,
@@ -255,12 +263,7 @@ export function registerAgentCommands(program: Command): void {
         const client = createOpencodeClient({ baseUrl: server.url });
         const executionEngine = new OpenCodeExecutionEngine(client, policyEngine, OLLAMA_PROVIDER_ID);
 
-        const orchestrator = new AgentOrchestrator(
-          executionEngine,
-          policyEngine,
-          contextBuilder,
-          llmProvider,
-        );
+        const orchestrator = new AgentOrchestrator(executionEngine, policyEngine, contextBuilder);
 
         const task: AgentTask = {
           id: randomUUID(),
