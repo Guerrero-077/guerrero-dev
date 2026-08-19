@@ -1,9 +1,10 @@
 /**
  * @guerrero-dev/mcp
  *
- * Cliente y servidores MCP (Git, GitHub, Files, Project Intelligence) sobre el SDK oficial TypeScript.
- *
- * Placeholder de Fase 3 (Foundation): este package existe y compila,
- * pero su implementación real llega en Fase 7 — Cline/OpenCode Integration. Ver docs/fase-2-seleccion-tecnologica.md.
+ * Servidores MCP reales de Guerrero Dev. Primera implementación real
+ * (Fase 5.4c): `CodeIntelligenceMcpServer`, que expone
+ * `CodeIntelligenceToolHandler` (Fase 5.4b, `application`) como tools MCP
+ * reales invocables por un motor de ejecución que hable el protocolo
+ * (OpenCode, vía `Config.mcp`).
  */
-export const PACKAGE_NAME = "@guerrero-dev/mcp";
+export * from "./CodeIntelligenceMcpServer.js";

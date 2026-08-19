@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
 import { userInfo } from "node:os";
 import { Command } from "commander";
 import type { AgentTask } from "@guerrero-dev/domain";
@@ -12,8 +13,29 @@ import {
   loadConfig,
   OllamaEmbeddingProvider,
 } from "@guerrero-dev/infrastructure";
+import { CODE_INTELLIGENCE_REPO_ROOT_ENV } from "@guerrero-dev/mcp";
 import { createOpencodeClient, createOpencodeServer } from "@opencode-ai/sdk";
 import { createCliContext } from "../context.js";
+
+const require = createRequire(import.meta.url);
+
+/**
+ * Fase 5.4c: ruta real al servidor MCP de Code Intelligence, compilado por
+ * `@guerrero-dev/mcp` (subpath `./server`, no exportado desde `.` — ver su
+ * JSDoc). `require.resolve` respeta los `exports` del `package.json` real
+ * y no asume ninguna estructura de directorios del monorepo.
+ */
+const CODE_INTELLIGENCE_MCP_SERVER_PATH = require.resolve("@guerrero-dev/mcp/server");
+
+/**
+ * Nombre del servidor MCP tal como aparece en `Config.mcp`. OpenCode
+ * expone cada tool de un servidor MCP local prefijado con este nombre
+ * (`{id}_{toolName}`, p. ej. `code-intelligence_find_symbols_by_name`) —
+ * verificado real con un proxy HTTP interceptando el `POST
+ * /v1/chat/completions` real hacia Ollama (mismo método que 5.14/6o), no
+ * asumido de la documentación de MCP.
+ */
+const CODE_INTELLIGENCE_MCP_SERVER_ID = "code-intelligence";
 
 /**
  * Fase 5.9c: red de seguridad, no fix de causa raíz. Verificando 5.9b con
@@ -202,6 +224,56 @@ const MAX_AGENT_STEPS = 6;
  * `ContextBuilder` ahora llega a ese modelo como `body.system` de
  * `session.prompt()` (ver `ExecutionOptions.systemPrompt` y el JSDoc de
  * `OpenCodeExecutionEngine`), que es lo que 5.2 prometía y no cumplía.
+ *
+ * Fase 5.4c: `Config.mcp` real. Auditando el estado de Fase 5.4b (Code
+ * Intelligence expuesta al agente) se confirmó que `CodeIntelligenceToolHandler`
+ * (`application`, ya cerrado y testeado desde 5.4b) tenía cero
+ * consumidores reales — mismo patrón que 6n (`AllowReadRule`): código
+ * cerrado, inalcanzable en runtime. El camino de dominio
+ * (`ExecutionPlanStep.toolRequest` → `ToolSelector.selectToolSteps()`)
+ * está muerto con el motor OpenCode (6n) — enchufar el handler ahí habría
+ * sido igual de inerte. Verificado contra el SDK real
+ * (`@opencode-ai/sdk@1.18.18`) que el único mecanismo real para tools
+ * nuevas es un servidor MCP (`Config.mcp[id]`, `McpLocalConfig`) — ya
+ * anticipado en el propio JSDoc de `ToolSelector` ("Cuando exista un
+ * catálogo real de herramientas MCP"). `@guerrero-dev/mcp` (Fase 5.4c)
+ * implementa el primer servidor MCP real del repo,
+ * `CodeIntelligenceMcpServer`, envolviendo ese mismo handler.
+ *
+ * `environment: { [CODE_INTELLIGENCE_REPO_ROOT_ENV]: project.path }`:
+ * `repoRoot` viaja por variable de entorno al spawnear, nunca como
+ * argumento que el modelo tenga que completar — evita reproducir la
+ * alucinación de rutas de 6p (el modelo inventando
+ * `C:\path\to\your\project\...` en vez de la ruta real).
+ *
+ * **Hallazgo real de esta auditoría, no de wiring**: la primera vez que
+ * se probó `Config.mcp` + `Config.provider` juntos contra este mismo
+ * directorio (`guerrero-dev`), `opencode serve` devolvió `Unexpected
+ * error / ServeError` de forma silenciosa (no fatal, el servidor HTTP
+ * seguía respondiendo) y nunca llegó a spawnear el proceso MCP —
+ * verificado con `Get-CimInstance Win32_Process`, cero procesos
+ * `node ... server.js` corriendo. Aislado el problema (config vacía →
+ * sin error; solo `provider` → sin error; solo `mcp` → sin error, pero
+ * tampoco spawnea; ambos juntos → error) hasta un directorio de trabajo
+ * nuevo, sin ningún error: `opencode` mantiene una "instancia" por
+ * directorio persistida en `~/.local/share/opencode/opencode.db`, y un
+ * primer intento roto contra un directorio deja esa instancia
+ * envenenada — reintentos posteriores contra el mismo directorio, incluso
+ * con config corregida, siguen fallando hasta usar un directorio nuevo.
+ * No es un bug de este código: es una limitación operacional real de
+ * `opencode serve` (versión 1.18.18) que no se investigó más a fondo acá
+ * (causa raíz exacta sin confirmar, candidata a auditoría futura si
+ * reaparece en uso real).
+ *
+ * **Verificado real, end-to-end**, con el mismo método de proxy HTTP de
+ * 5.14/6o (`OLLAMA_BASE_URL` apuntado a un proxy local que loggea el
+ * `POST /v1/chat/completions` real antes de reenviarlo a Ollama): los
+ * cuatro tools de Code Intelligence aparecen en el array `tools` que
+ * OpenCode le manda al modelo, prefijados
+ * `code-intelligence_{toolName}` (confirma el JSDoc de arriba sobre el
+ * naming), junto a los tools nativos (`bash`, `read`, `edit`, etc.) — en
+ * un directorio de trabajo limpio, sin el problema de instancia
+ * envenenada de arriba.
  */
 export function registerAgentCommands(program: Command): void {
   const agent = program.command("agent").description("Ejecuta al agente de Guerrero Dev");
@@ -251,6 +323,13 @@ export function registerAgentCommands(program: Command): void {
                 name: "Ollama (local)",
                 options: { baseURL: new URL("/v1", config.OLLAMA_BASE_URL).toString() },
                 models: { [modelName]: { tool_call: true } },
+              },
+            },
+            mcp: {
+              [CODE_INTELLIGENCE_MCP_SERVER_ID]: {
+                type: "local",
+                command: [process.execPath, CODE_INTELLIGENCE_MCP_SERVER_PATH],
+                environment: { [CODE_INTELLIGENCE_REPO_ROOT_ENV]: project.path },
               },
             },
             permission: { edit: "ask", bash: "ask", webfetch: "ask" },

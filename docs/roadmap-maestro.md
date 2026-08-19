@@ -122,8 +122,8 @@ entrada 6o). No existe todavía ninguna ruta `/agent` ni `/chat` en
 
 Las subfases propuestas originalmente no se auditaron una por una en
 orden estricto — el trabajo real avanzó incremento por incremento,
-documentado en el log de §7 (6b-6p), con su propia numeración orgánica
-(5.5b-5.14) que terminó cubriendo el alcance de 5.1-5.5. Estado real,
+documentado en el log de §7 (6b-6q), con su propia numeración orgánica
+(5.5b-5.14 + 5.4c) que terminó cubriendo el alcance de 5.1-5.5. Estado real,
 verificado contra código (`ContextBuilder.ts`, `AgentOrchestrator.ts`),
 no solo contra lo que este documento planeaba:
 
@@ -139,23 +139,26 @@ no solo contra lo que este documento planeaba:
      (5.5b/6b, 5.9b/6g, 5.9d/6i), un mecanismo distinto al planeado acá
 5.4a Memory expuesta a ContextBuilder               ✅ cerrado
      (`IMemoryRetriever`, ver `ContextBuilder.ts`)
-5.4b Code Intelligence expuesta al agente           ⛔ sin empezar —
-     `ContextBuilder` solo depende de `IProjectIntelligenceProvider` +
-     `IMemoryRetriever`; `ICodeAnalyzer` (Fase 4/6.1-6.5) no tiene
-     consumidor todavía (verificado: sin referencias en
-     `ContextBuilder.ts`)
+5.4b Code Intelligence expuesta al agente           ✅ cerrado (5.4b,
+     `CodeIntelligenceToolHandler`, application) + ✅ cerrado (5.4c,
+     `@guerrero-dev/mcp`, cablea el handler a un servidor MCP real que
+     el agente invoca de verdad — ver §7 entrada 6q). Corrección sobre
+     lo dicho en la revisión anterior de este documento: 5.4b sí tenía
+     avance real (commit `5ad3370`), solo le faltaba consumidor —
+     confundir "sin consumidor" con "sin avance" fue un error de esa
+     revisión, no un hallazgo nuevo
 5.5  Integración Cline/OpenCode real                🟡 sustancialmente
-     cerrada vía 5.5b-5.14 (6b-6o), con dos hallazgos reales abiertos
-     y no bloqueantes: 6n (AllowReadRule sin efecto en runtime hasta
-     que el motor exponga tool calls granulares) y 6p
+     cerrada vía 5.5b-5.14 + 5.4c (6b-6q), con dos hallazgos reales
+     abiertos y no bloqueantes: 6n (AllowReadRule sin efecto en
+     runtime hasta que el motor exponga tool calls granulares) y 6p
      (qwen2.5:7b-instruct-q4_K_M alucina rutas absolutas en tool
      calls reales)
 ```
 
 Pendiente real antes de considerar cerrada toda la Fase 5 unificada:
-5.4b (Code Intelligence expuesta al agente) y una decisión explícita
-sobre 6n/6p. Ninguno de los dos bloquea el uso actual de
-`guerrero agent run`, pero ninguno está resuelto todavía.
+una decisión explícita sobre 6n/6p (5.4b/5.4c ya cerrados). Ninguno de
+los dos bloquea el uso actual de `guerrero agent run`, pero ninguno
+está resuelto todavía.
 
 ### Fase 6 — Developer Tools
 
@@ -286,13 +289,16 @@ entrada propia fue 6b. Ver también el resumen de estado real en §3.
 4. CERRADO — Fase 5.4a: Memory expuesta a ContextBuilder
    ContextBuilder depende de IMemoryRetriever real, ver ContextBuilder.ts.
 
-5. PENDIENTE — Fase 5.4b: Code Intelligence expuesta al agente
-   Sigue sin consumidor: ContextBuilder.ts no referencia ICodeAnalyzer
-   ni ningún query de Fase 4/6.1-6.5. Único ítem de la lista original
-   sin ningún avance todavía — candidato real a próxima auditoría.
+5. CERRADO — Fase 5.4b: Code Intelligence expuesta al agente
+   Corrección: la revisión anterior de este documento decía "sin ningún
+   avance" — error de esa revisión, no hallazgo nuevo. `CodeIntelligenceToolHandler`
+   (commit `5ad3370`) ya era real y testeado desde antes de esa revisión;
+   lo que le faltaba era consumidor, no implementación. Cerrado del todo
+   en 5.4c (entrada 6q) — el consumidor real es un servidor MCP, no
+   `ContextBuilder`.
 
 6. SUSTANCIALMENTE CERRADO — Fase 5.5: Integración Cline/OpenCode real
-   Cubierto por los incrementos 5.5b-5.14 (6b-6o) de abajo. Dos
+   Cubierto por los incrementos 5.5b-5.14 + 5.4c (6b-6q) de abajo. Dos
    hallazgos reales quedan abiertos y no bloqueantes: 6n (PolicyRule
    sin efecto en runtime) y 6p (alucinación de rutas del modelo).
 
@@ -782,14 +788,75 @@ entrada propia fue 6b. Ver también el resumen de estado real en §3.
    OpenCode, o algo combinable con un modelo más grande — decisión y
    alcance pendientes de una auditoría futura, no de un fix reflejo acá.
 
-   Estado real del backlog después de 6p (actualizado, ver también
-   §3): de la lista original 1-6, el único ítem sin ningún avance es
-   5 (Fase 5.4b, Code Intelligence expuesta al agente) — candidato más
-   directo a próxima auditoría formal. Además quedan dos decisiones
-   abiertas sin dueño todavía: 6n (vocabulario canónico de `toolName`
-   para que `PolicyRule`s como `AllowReadRule` tengan efecto real) y
-   6p (causa de la alucinación de rutas). Ninguno de los tres bloquea
-   `guerrero agent run` hoy.
+6q. CERRADO — Fase 5.4c: `CodeIntelligenceToolHandler` (5.4b) conectado
+   de verdad vía un servidor MCP real. Auditando si 5.4b podía darse por
+   cerrado, se encontró el mismo patrón que 6n: código real y testeado
+   sin ningún consumidor (`grep -rl CodeIntelligenceToolHandler` fuera
+   de `application/code-intelligence` daba vacío antes de este
+   incremento). El camino de dominio (`ExecutionPlanStep.toolRequest` →
+   `ToolSelector.selectToolSteps()`) está muerto con el motor OpenCode
+   (6n) — conectar el handler ahí habría sido igual de inútil.
+   Verificado contra el SDK real (`@opencode-ai/sdk@1.18.18`,
+   `types.gen.d.ts`) que el único mecanismo real para tools nuevas es un
+   servidor MCP (`Config.mcp[id]`, `McpLocalConfig`) — coincide con lo
+   que el propio JSDoc de `ToolSelector` ya anticipaba ("Cuando exista un
+   catálogo real de herramientas MCP, `@guerrero-dev/mcp`").
+
+   `@guerrero-dev/mcp` (cascarón desde Fase 3, sin tocar hasta ahora)
+   gana su primera implementación real: `CodeIntelligenceMcpServer`
+   (`@modelcontextprotocol/sdk@1.30.0`, dependencia nueva) envuelve
+   `CodeIntelligenceToolHandler` con los 4 tools ya reales de 5.4b
+   (`find_symbols_by_name`, `get_dependencies`, `get_dependents`,
+   `search_literal`), más `server.ts` como entrypoint spawneable
+   (`./server` subpath export, mismo patrón que `apps/api`'s `./app`).
+   Decisión de diseño explícita: `repoRoot` llega por variable de
+   entorno al spawnear (`CODE_INTELLIGENCE_REPO_ROOT_ENV`), nunca como
+   argumento que el modelo tenga que completar — evita reproducir la
+   alucinación de rutas de 6p por diseño, no por suerte, porque el
+   composition root (`apps/cli/src/commands/agent.ts`) ya conoce
+   `project.path` real.
+
+   **Hallazgo real de esta auditoría, no de wiring**: la primera vez que
+   se probó `Config.mcp` + `Config.provider` juntos contra el directorio
+   de este propio repo, `opencode serve` devolvió `Unexpected error /
+   ServeError` de forma silenciosa (servidor HTTP seguía respondiendo,
+   pero nunca spawneó el proceso MCP — verificado con
+   `Get-CimInstance Win32_Process`, cero coincidencias reales). Aislado
+   por eliminación (config vacía → sin error; solo `provider` → sin
+   error; solo `mcp` → sin error pero tampoco spawnea; ambos juntos →
+   error) hasta un directorio de trabajo nuevo, sin ningún error:
+   `opencode` mantiene una "instancia" por directorio persistida en
+   `~/.local/share/opencode/opencode.db`, y un primer intento roto
+   contra un directorio la deja envenenada — reintentos posteriores
+   contra el mismo directorio, incluso con config ya corregida, siguen
+   fallando hasta usar un directorio nuevo. No es un bug de este código:
+   es una limitación operacional real de `opencode serve` 1.18.18, causa
+   raíz exacta sin confirmar — candidata a auditoría futura si reaparece
+   en uso real (p. ej. si `guerrero agent run` falla así, un
+   `~/.local/share/opencode/opencode.db` corrupto para ese directorio es
+   sospechoso número uno).
+
+   **Verificado real, end-to-end**, mismo método de proxy HTTP que
+   5.14/6o (`OLLAMA_BASE_URL` apuntado a un proxy local que loggea el
+   `POST /v1/chat/completions` real antes de reenviarlo a Ollama, en un
+   directorio de trabajo limpio): los cuatro tools de Code Intelligence
+   aparecen en el array `tools` real que OpenCode le manda al modelo,
+   prefijados `code-intelligence_{toolName}` (naming real de OpenCode
+   para tools de un servidor MCP local, confirmado, no asumido de la
+   documentación de MCP) — junto a los tools nativos (`bash`, `read`,
+   `edit`, etc.). Tests: `CodeIntelligenceMcpServer.test.ts` (6 casos,
+   protocolo MCP real vía `InMemoryTransport`, sin mockear ninguna clase
+   del SDK) + `tests/integration/code-intelligence-mcp-server.test.ts`
+   (4 casos, spawnea el binario `node` real sobre `packages/mcp/dist/server.js`
+   ya compilado y habla stdio real contra un `Client` real, dogfooding
+   contra `guerrero-dev`, mismo criterio que `fase-6-acceptance.test.ts`).
+   487 tests totales (antes 481), build/typecheck/lint limpios.
+
+   Corrección sobre la revisión anterior de este documento: decía que
+   5.4b estaba "sin ningún avance" — error de esa revisión, no un
+   hallazgo nuevo. El handler ya existía real y testeado desde el commit
+   `5ad3370`; lo que le faltaba era consumidor, confirmado con
+   `git log`, no con una suposición.
 
 7. HOUSEKEEPING (no bloqueante, cuando convenga) — corregir el
    comentario desactualizado de packages/project-intelligence/src/index.ts

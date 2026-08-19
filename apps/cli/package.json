@@ -19,6 +19,7 @@
     "@guerrero-dev/domain": "workspace:*",
     "@guerrero-dev/execution": "workspace:*",
     "@guerrero-dev/infrastructure": "workspace:*",
+    "@guerrero-dev/mcp": "workspace:*",
     "@guerrero-dev/shared": "workspace:*",
     "@opencode-ai/sdk": "^1.18.18",
     "commander": "^12.1.0",

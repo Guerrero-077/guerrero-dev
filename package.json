@@ -30,6 +30,8 @@
     "@guerrero-dev/domain": "workspace:*",
     "@guerrero-dev/execution": "workspace:*",
     "@guerrero-dev/infrastructure": "workspace:*",
+    "@guerrero-dev/mcp": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@opencode-ai/sdk": "^1.18.18",
     "@types/node": "^22.10.0",
     "cross-env": "^7.0.3",

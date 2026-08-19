@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
     }
   },
   "scripts": {
@@ -20,7 +24,10 @@
   "dependencies": {
     "@guerrero-dev/application": "workspace:*",
     "@guerrero-dev/domain": "workspace:*",
-    "@guerrero-dev/shared": "workspace:*"
+    "@guerrero-dev/infrastructure": "workspace:*",
+    "@guerrero-dev/shared": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "typescript": "^5.7.2",
