@@ -326,6 +326,24 @@ implementación todavía, solo ordenado para cuando se retome.
    `permission.updated` real) o si persiste (siguiente paso:
    `tool_call: true`, evaluado con evidencia nueva).
 
+6f. CERRADO (parcial) — Fase 5.9: hipótesis de 6e descartada por
+   evidencia directa, no confirmada. `qwen2.5-coder:7b` reprodujo el
+   mismo síntoma que `gemma3:4b` (tool call como texto plano, sin
+   `permission.updated`) — no era específico de un modelo sin soporte
+   de tools. `tool_call: true` (campo real de
+   `ProviderConfig.models[key]`, `@opencode-ai/sdk` instalado) se
+   agregó a la entrada del modelo en `Config.provider["ollama"]` —
+   necesario según el contrato del SDK, pero probado directo contra
+   `POST /api/chat` de Ollama (sin pasar por OpenCode) con `tools` real
+   declarado, `qwen2.5-coder:7b` sigue sin envolver su respuesta en
+   `<tool_call>...</tool_call>` como exige su propio template
+   (`ollama show qwen2.5-coder:7b --template`) — consistente en 3/3
+   intentos. Es una limitación de esa cuantización/checkpoint
+   específica, no del wiring. `qwen2.5:7b-instruct-q4_K_M` (mismo peso,
+   ya descargado) sí produce `tool_calls` estructurados de forma
+   consistente (2/2, verificado real) — es la elección recomendada hoy
+   para `agent run`. Ver commit de esta sesión.
+
 7. HOUSEKEEPING (no bloqueante, cuando convenga) — corregir el
    comentario desactualizado de packages/project-intelligence/src/index.ts
    (dice "implementación real llega en Fase 5-6"; la implementación

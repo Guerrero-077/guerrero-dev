@@ -50,6 +50,26 @@ import { createCliContext } from "../context.js";
  * sobre soporte de tool-calling del modelo, no del wiring. Este flag
  * permite repetir el experimento con otros modelos ya descargados
  * (p. ej. `qwen2.5-coder:7b`) sin tocar variables de entorno.
+ *
+ * Fase 5.9: `tool_call: true` agregado en la entrada del modelo — campo
+ * real del SDK instalado (`ProviderConfig.models[key].tool_call?:
+ * boolean`, `@opencode-ai/sdk/dist/gen/types.gen.d.ts`), sin el cual
+ * OpenCode nunca declara herramientas estructuradas al proveedor. Es
+ * necesario pero NO fue suficiente para el síntoma original: probado
+ * directo contra `POST /api/chat` de Ollama (sin pasar por OpenCode) con
+ * un `tools` real declarado, `qwen2.5-coder:7b` devuelve el tool call
+ * como `content` de texto plano en vez de `tool_calls` estructurado, de
+ * forma consistente (3/3) — su propio template (`ollama show
+ * qwen2.5-coder:7b --template`) exige envolver la respuesta en
+ * `<tool_call>...</tool_call>`, pero el modelo no lo hace. Es una
+ * limitación de esa cuantización/checkpoint específica, no del wiring de
+ * OpenCode ni de este flag. `qwen2.5:7b-instruct-q4_K_M` (mismo peso,
+ * mismo host) sí lo hace de forma consistente (2/2, verificado real) y
+ * es la elección recomendada hoy para `agent run`. `tool_call: true`
+ * queda incondicional acá de todos modos: si el modelo no soporta tools
+ * en absoluto (p. ej. `gemma3:4b`), Ollama devuelve un 400 explícito
+ * ("does not support tools") que se propaga limpio como `Estado: failed`
+ * (fix de Fase 5.7b) — nunca degrada en silencio a texto plano.
  */
 export function registerAgentCommands(program: Command): void {
   const agent = program.command("agent").description("Ejecuta al agente de Guerrero Dev");
@@ -99,7 +119,7 @@ export function registerAgentCommands(program: Command): void {
                 npm: "@ai-sdk/openai-compatible",
                 name: "Ollama (local)",
                 options: { baseURL: new URL("/v1", config.OLLAMA_BASE_URL).toString() },
-                models: { [modelName]: {} },
+                models: { [modelName]: { tool_call: true } },
               },
             },
           },
