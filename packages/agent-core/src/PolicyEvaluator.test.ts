@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ToolRequest } from "@guerrero-dev/domain";
 import type { PolicyContext } from "@guerrero-dev/application";
 import { PolicyEvaluator } from "./PolicyEvaluator.js";
-import { AllowReadRule } from "./rules/AllowReadRule.js";
+import { AllowScopedMutationRule } from "./rules/AllowScopedMutationRule.js";
 
 function makeRequest(): ToolRequest {
   return {
@@ -70,9 +70,9 @@ describe("PolicyEvaluator", () => {
     expect(decision.reason).toContain("fs.write");
   });
 
-  it("con AllowReadRule como única regla, aprueba read y deniega el resto", async () => {
+  it("con AllowScopedMutationRule como única regla, aprueba read y deniega el resto", async () => {
     const engine = new PolicyEvaluator();
-    engine.addRule(new AllowReadRule());
+    engine.addRule(new AllowScopedMutationRule());
 
     const readDecision = await engine.evaluate({ ...makeRequest(), toolName: "read" }, context);
     expect(readDecision.allowed).toBe(true);

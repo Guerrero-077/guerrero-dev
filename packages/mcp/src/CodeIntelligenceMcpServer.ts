@@ -65,8 +65,9 @@ const TOOL_SEARCH_LITERAL = "search_literal";
  * (`apps/cli/src/commands/agent.ts`) pueda construir los nombres
  * prefijados reales (`{serverId}_{toolName}`, ver JSDoc de
  * `apps/cli/src/commands/agent.ts`) que necesita tanto para
- * `Config.permission` como para `AllowReadRule`, sin duplicar los cuatro
- * strings literales en otro package y arriesgar que diverjan.
+ * `Config.permission` como para `AllowScopedMutationRule` (sucesora de
+ * `AllowReadRule`, Fase 6.3), sin duplicar los cuatro strings literales
+ * en otro package y arriesgar que diverjan.
  */
 export const CODE_INTELLIGENCE_TOOL_NAMES = [
   TOOL_FIND_SYMBOLS_BY_NAME,
@@ -75,9 +76,7 @@ export const CODE_INTELLIGENCE_TOOL_NAMES = [
   TOOL_SEARCH_LITERAL,
 ] as const;
 
-export function buildCodeIntelligenceMcpServer(
-  options: CodeIntelligenceMcpServerOptions,
-): McpServer {
+export function buildCodeIntelligenceMcpServer(options: CodeIntelligenceMcpServerOptions): McpServer {
   const handler = new CodeIntelligenceToolHandler(options.codeAnalyzer, options.literalSearch);
   const server = new McpServer({ name: "guerrero-dev-code-intelligence", version: "0.1.0" });
   const { repoRoot } = options;

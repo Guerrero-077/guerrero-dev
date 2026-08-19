@@ -976,12 +976,61 @@ entrada propia fue 6b. Ver también el resumen de estado real en §3.
    para `edit`, capturable solo en una máquina con Ollama + `opencode
    serve` reales) más una decisión de diseño sobre cómo componer una
    `PolicyRule` de mutación con `AllowReadRule` bajo el modelo AND actual
-   de `PolicyEvaluator` — ver ese documento §5 para el detalle. Sin
-   código todavía; siguiente paso real es 6.1 (captura de evidencia),
-   pendiente de Santiago.
+   de `PolicyEvaluator` — ver ese documento §5 para el detalle. Siguiente
+   paso real es 6.1 (captura de evidencia), pendiente de Santiago — ver
+   8b para lo que ya se implementó mientras tanto.
 
    Fase 7 (Autonomous Workflows) sigue diferida sin evidencia — depende
    de que Fase 6 dé herramientas reales primero.
+
+8b. CERRADO (código) / NO ALCANZABLE EN RUNTIME todavía — Fase 6.3:
+   `AllowScopedMutationRule` (`packages/agent-core/src/rules/`) reemplaza
+   a `AllowReadRule` en el composition root (`apps/cli/src/commands/agent.ts`)
+   — mismo problema de composición AND + early-exit de `PolicyEvaluator`
+   que impide que dos allow-lists parciales convivan (ya documentado en
+   `AllowReadRule`), así que absorbe su contrato completo (`read` + Code
+   Intelligence vía `additionalAllowedTools`) y agrega una segunda
+   categoría real, `edit`, con su propia validación — no una allow-list
+   ciega: exige que `request.input` traiga un path bajo
+   `EDIT_TARGET_PATH_METADATA_KEY`, que quede dentro de
+   `context.projectRootPath`, y que no esté en una deny-list real de
+   `guerrero-dev` (`.env`, `.git/`, `pnpm-lock.yaml`, las 4 migraciones ya
+   aplicadas — hace cumplir con código la regla ya escrita en `CLAUDE.md`
+   de nunca editar una migración aplicada).
+
+   `EDIT_TARGET_PATH_METADATA_KEY` es, a propósito, un valor centinela
+   que nunca coincide con ninguna clave real (`docs/fase-6-developer-tools-map.md`
+   §4/§8.3 documentó la hipótesis circunstancial "file"/"filePath" pero
+   sin evidencia real de un `permission.asked` de tipo `edit` capturado
+   en vivo) — mientras no se reemplace por el nombre confirmado en 6.1,
+   `evaluateEdit()` deniega toda edición por fail-closed, sin excepción;
+   no hay forma de que esta regla apruebe algo real por accidente.
+   Registrarla en el composition root no cambia ningún comportamiento
+   observable todavía: `DISABLED_TOOLS.edit` sigue en `false`, así que el
+   agente `build` no puede ni intentar invocar `edit` — mismo patrón
+   "CERRADO (código) / NO ALCANZABLE EN RUNTIME todavía" que
+   `AllowReadRule` tuvo entre 5.13 y 6n.
+
+   `isPathWithinRoot` (misma lógica que la de
+   `infrastructure/filesystem`, Fase 5 unificada) se duplicó localmente
+   en vez de importarla: `agent-core/package.json` solo depende hoy de
+   `application`/`domain`/`shared`, y agregar `infrastructure` sería una
+   dependencia nueva entre paquetes "hermanos" de la capa de
+   implementaciones por una función pura sin I/O — mismo criterio ya
+   usado dentro de `domain/` entre `code/` y `project/`
+   (`CodeInvariants.isRelativeFilePath`).
+
+   Tests: `AllowScopedMutationRule.test.ts` nuevo (20 casos — categoría
+   de lectura idéntica a `AllowReadRule` más 14 casos nuevos de `edit`:
+   aprobación real dentro del proyecto, path absoluto, fail-closed sin
+   campo/con campo inválido, denegación con nombres de campo "razonables"
+   pero no confirmados —documenta explícitamente que sigue sin ser
+   alcanzable—, fuera de `projectRootPath` relativo y absoluto con mismo
+   prefijo de string, las 5 rutas de la deny-list, y una migración nueva
+   no listada aprobada). `PolicyEvaluator.test.ts` actualizado a la nueva
+   clase. 502 tests totales en verde (antes 491), build/typecheck/lint
+   limpios. Sin verificación end-to-end — no aplica todavía, nada de esto
+   es alcanzable en runtime hasta 6.1 + 6.4.
 
 9. EVOLUTIVO, sin evidencia todavía — Fase 8 (Personal Engineering
    Profile), Fase 9 (Continuous Learning), MemoryEmbedding

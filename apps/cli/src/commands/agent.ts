@@ -3,7 +3,12 @@ import { createRequire } from "node:module";
 import { userInfo } from "node:os";
 import { Command } from "commander";
 import type { AgentTask } from "@guerrero-dev/domain";
-import { AgentOrchestrator, AllowReadRule, ContextBuilder, PolicyEvaluator } from "@guerrero-dev/agent-core";
+import {
+  AgentOrchestrator,
+  AllowScopedMutationRule,
+  ContextBuilder,
+  PolicyEvaluator,
+} from "@guerrero-dev/agent-core";
 import { MemoryRanker, MemoryRetriever, ProjectIntelligenceProvider } from "@guerrero-dev/application";
 import { OpenCodeExecutionEngine } from "@guerrero-dev/execution";
 import {
@@ -43,7 +48,7 @@ const CODE_INTELLIGENCE_MCP_SERVER_ID = "code-intelligence";
  * (`{CODE_INTELLIGENCE_MCP_SERVER_ID}_{toolName}`, ver JSDoc de
  * `CODE_INTELLIGENCE_MCP_SERVER_ID` arriba) — construidos acá, en el único
  * lugar que conoce ambas mitades, en vez de hardcodearlos de nuevo donde
- * se usan (`permission` y `AllowReadRule`, más abajo).
+ * se usan (`permission` y `AllowScopedMutationRule`, más abajo).
  *
  * Fase 6n — hallazgo real que motiva usar esta lista en `permission`:
  * verificando si Code Intelligence (5.4c) tenía el mismo problema que
@@ -347,6 +352,24 @@ const MAX_AGENT_STEPS = 6;
  * Code Intelligence, antes invisibles para `IPolicyEngine`, ahora pasan
  * por él y quedan aprobados explícitamente en vez de auto-aprobados por
  * el default de OpenCode.
+ *
+ * Fase 6.3 (`docs/fase-6-developer-tools-map.md` §8): `AllowReadRule` se
+ * reemplaza acá por `AllowScopedMutationRule` — no conviven (mismo
+ * problema de composición AND + early-exit de `PolicyEvaluator` que ya
+ * documentaba `AllowReadRule`; ver JSDoc de la nueva clase). La nueva
+ * clase absorbe el mismo contrato de lectura (`read` + Code Intelligence
+ * vía `additionalAllowedTools`, idéntico) y agrega una segunda categoría
+ * real, `edit`, con su propia validación (contención en
+ * `projectRootPath` + deny-list de rutas sensibles del propio repo). El
+ * campo de `request.input` que trae el path objetivo de una edición
+ * sigue sin confirmar contra el binario real (`EDIT_TARGET_PATH_METADATA_KEY`,
+ * ver JSDoc de la clase) — mientras eso no se capture en una máquina con
+ * Ollama + `opencode serve` reales, `evaluateEdit()` deniega toda
+ * edición por fail-closed, sin excepción. Registrar esta clase acá no
+ * cambia ningún comportamiento observable todavía: `DISABLED_TOOLS.edit`
+ * sigue en `false`, así que el agente `build` no puede ni intentar
+ * invocar `edit` — mismo patrón "CERRADO (código) / NO ALCANZABLE EN
+ * RUNTIME todavía" que `AllowReadRule` tuvo entre 5.13 y 6n.
  */
 export function registerAgentCommands(program: Command): void {
   const agent = program.command("agent").description("Ejecuta al agente de Guerrero Dev");
@@ -386,7 +409,7 @@ export function registerAgentCommands(program: Command): void {
         );
         const contextBuilder = new ContextBuilder(projectIntelligenceProvider, memoryRetriever);
         const policyEngine = new PolicyEvaluator();
-        policyEngine.addRule(new AllowReadRule(CODE_INTELLIGENCE_PREFIXED_TOOL_NAMES));
+        policyEngine.addRule(new AllowScopedMutationRule(CODE_INTELLIGENCE_PREFIXED_TOOL_NAMES));
 
         const OLLAMA_PROVIDER_ID = "ollama";
         server = await createOpencodeServer({

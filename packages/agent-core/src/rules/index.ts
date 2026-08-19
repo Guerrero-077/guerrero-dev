@@ -1,1 +1,1 @@
-export * from "./AllowReadRule.js";
+export * from "./AllowScopedMutationRule.js";

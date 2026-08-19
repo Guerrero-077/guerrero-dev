@@ -436,19 +436,23 @@ Más `edit: true` en `DISABLED_TOOLS` (6.4) y sin cambios en `PERMISSION`
 
 ## 9. Qué NO decide este documento
 
-- No autoriza ninguna implementación — ni siquiera 6.1 requiere código,
-  pero si el resultado de 6.1 confirma la forma esperada, 6.2/6.3 sí
-  necesitan su propia aprobación explícita antes de tocar código, mismo
-  ritual que 4.x-6.x/Fase 5 unificada.
-- No decide entre los caminos (a)/(b) de §5 — deja la recomendación
-  explícita ((a) primero) pero la decisión final es de Santiago.
-- No amplía `AllowReadRule` ni toca `PolicyEvaluator` — cero cambios de
-  código en este incremento. El pseudocódigo de §8.3/§8.4 es una
-  propuesta de diseño en este documento, no un archivo `.ts` real — no
-  se creó ningún `AllowScopedMutationRule.ts` en `packages/agent-core`.
-- §8.1 propone una deny-list concreta para `guerrero-dev` (no genérica),
-  pero queda como propuesta hasta que Santiago la apruebe explícitamente
-  — este documento no la fija como decisión final.
-- No resuelve `EDIT_TARGET_PATH_METADATA_KEY` (§8.3) — ese valor sale
-  únicamente de 6.1, capturado contra el binario real; el placeholder en
-  el pseudocódigo es intencional, no un descuido.
+**Actualizado tras 6.3** (`docs/roadmap-maestro.md` ítem 8b): el
+pseudocódigo de §8.3/§8.4 dejó de ser solo propuesta — `AllowScopedMutationRule`
+se implementó tal cual, reemplazando a `AllowReadRule` en el composition
+root, con `EDIT_TARGET_PATH_METADATA_KEY` como centinela sin confirmar
+(fail-closed garantizado mientras no se toque) y la deny-list de §8.1
+aplicada literalmente. 502 tests en verde, build/typecheck/lint limpios.
+Sigue sin ser alcanzable en runtime (`DISABLED_TOOLS.edit` en `false`).
+
+Lo que sigue sin decidir este documento ni el código de 6.3:
+
+- No autoriza reactivar `edit` de verdad — eso es 6.4, todavía no hecho.
+- No decide entre los caminos (a)/(b) de §5 — 6.3 implementó (a), la
+  recomendación de este mapa; (b) sigue sin evaluarse.
+- La deny-list de §8.1, aunque ya está en el código, sigue sin la
+  aprobación explícita de Santiago — implementarla no equivale a que
+  esté validada como correcta/completa.
+- No resuelve `EDIT_TARGET_PATH_METADATA_KEY` — sigue esperando la
+  evidencia real de 6.1; el centinela en el código no es un valor
+  funcional, es un valor que garantiza denegar todo hasta que alguien lo
+  reemplace deliberadamente.
