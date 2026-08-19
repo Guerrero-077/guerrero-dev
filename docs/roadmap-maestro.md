@@ -149,16 +149,18 @@ no solo contra lo que este documento planeaba:
      avance real (commit `5ad3370`), solo le faltaba consumidor —
      confundir "sin consumidor" con "sin avance" fue un error de esa
      revisión, no un hallazgo nuevo
-5.5  Integración Cline/OpenCode real                🟡 sustancialmente
-     cerrada vía 5.5b-5.14 + 5.4c + 6n (6b-6r), con un hallazgo real
-     abierto y no bloqueante: 6p (qwen2.5:7b-instruct-q4_K_M alucina
-     rutas absolutas en tool calls reales — no reproducido de nuevo en
-     la verificación real de 6r, pero tampoco se cerró la causa raíz)
+5.5  Integración Cline/OpenCode real                ✅ sustancialmente
+     cerrada vía 5.5b-5.14 + 5.4c + 6n (6b-6r). 6p (alucinación de
+     rutas de qwen2.5:7b-instruct-q4_K_M) queda diferido con decisión
+     explícita, no sin decidir — ver 6r: no reproducido de nuevo en la
+     verificación end-to-end real, sin modelo más grande disponible
+     para probar la hipótesis principal, se retoma con evidencia nueva
 ```
 
-Pendiente real antes de considerar cerrada toda la Fase 5 unificada:
-una decisión explícita sobre 6p (5.4b/5.4c/6n ya cerrados). No bloquea
-el uso actual de `guerrero agent run`, pero no está resuelto todavía.
+No queda ninguna decisión pendiente para considerar cerrada toda la
+Fase 5 unificada (5.1-5.5, 6n incluidos) — 6p es la única pieza sin
+causa raíz confirmada, y quedó explícitamente diferida (6r), no
+bloquea `guerrero agent run`.
 
 ### Fase 6 — Developer Tools
 
@@ -242,12 +244,13 @@ con la visión original y con lo que falta.
 
 ## 6. Qué NO define este documento
 
-- No autoriza ninguna implementación nueva por sí mismo — el próximo
-  candidato real, con evidencia (§3, §7), es una decisión sobre 6p
-  (5.4b/5.4c/6n ya cerrados), con el mismo ritual usado en 4.x-6.x:
-  audit → decisiones → propuesta formal → aprobación → implementación
-  → verificación real → commit → checkpoint, en una conversación
-  separada.
+- No autoriza ninguna implementación nueva por sí mismo — Fase 5
+  unificada (5.1-5.5, 6n) queda sustancialmente cerrada, con 6p
+  diferido explícitamente (ver 6r). El próximo candidato real es Fase 6
+  (Developer Tools) cuando haya evidencia de que hace falta, con el
+  mismo ritual usado en 4.x-6.x: audit → decisiones → propuesta formal
+  → aprobación → implementación → verificación real → commit →
+  checkpoint, en una conversación separada.
 - No congela un modelo LLM específico — da la clase de modelo
   recomendada y por qué, no el nombre exacto.
 - No renombra ni reescribe ningún documento de cierre existente.
@@ -796,6 +799,19 @@ entrada propia fue 6b. Ver también el resumen de estado real en §3.
    ejemplo de un schema en vez de sustituirlos), el prompt de entorno de
    OpenCode, o algo combinable con un modelo más grande — decisión y
    alcance pendientes de una auditoría futura, no de un fix reflejo acá.
+
+   **Actualización (6r)**: decidido explícitamente no perseguir esto más
+   por ahora, con evidencia, no por default. Dos motivos reales: (1) no
+   hay modelo más grande disponible en este entorno para probar la
+   hipótesis principal (`ollama list` solo tiene
+   `qwen2.5:7b-instruct-q4_K_M`, `qwen3.5:2b` y un modelo de
+   embeddings); (2) el mismo prompt de regresión ("leé el package.json
+   de la raíz...") corrió 2/2 sin alucinar ninguna ruta en la
+   verificación end-to-end real de 6n/6r. Esto no prueba que esté
+   arreglado — no cambió nada en cómo el modelo arma argumentos de tool
+   calls — pero sí significa que no hay evidencia nueva para actuar
+   ahora. Queda diferido: retomar cuando reaparezca con una repro clara,
+   o cuando haya un modelo más grande disponible para probar.
 
 6q. CERRADO — Fase 5.4c: `CodeIntelligenceToolHandler` (5.4b) conectado
    de verdad vía un servidor MCP real. Auditando si 5.4b podía darse por
