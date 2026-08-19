@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import { registerAgentCommands } from "./commands/agent.js";
 import { runDoctor } from "./commands/doctor.js";
 import { registerProjectCommands } from "./commands/project.js";
 
@@ -13,10 +14,10 @@ program
   .action(runDoctor);
 
 registerProjectCommands(program);
+registerAgentCommands(program);
 
-// Placeholders (Fase 5 en adelante — ver docs/fase-3-implementacion.md):
+// Placeholders (Fase 6 en adelante — ver docs/roadmap-maestro.md §7):
 //   guerrero project analyze
 //   guerrero memory search
-//   guerrero agent run
 
 program.parse();

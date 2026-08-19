@@ -14,10 +14,13 @@
     "clean": "rimraf dist tsconfig.tsbuildinfo"
   },
   "dependencies": {
+    "@guerrero-dev/agent-core": "workspace:*",
     "@guerrero-dev/application": "workspace:*",
     "@guerrero-dev/domain": "workspace:*",
+    "@guerrero-dev/execution": "workspace:*",
     "@guerrero-dev/infrastructure": "workspace:*",
     "@guerrero-dev/shared": "workspace:*",
+    "@opencode-ai/sdk": "^1.18.18",
     "commander": "^12.1.0",
     "pg": "^8.13.1"
   },

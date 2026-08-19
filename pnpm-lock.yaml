@@ -96,18 +96,27 @@ importers:
 
   apps/cli:
     dependencies:
+      '@guerrero-dev/agent-core':
+        specifier: workspace:*
+        version: link:../../packages/agent-core
       '@guerrero-dev/application':
         specifier: workspace:*
         version: link:../../packages/application
       '@guerrero-dev/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@guerrero-dev/execution':
+        specifier: workspace:*
+        version: link:../../packages/execution
       '@guerrero-dev/infrastructure':
         specifier: workspace:*
         version: link:../../packages/infrastructure
       '@guerrero-dev/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@opencode-ai/sdk':
+        specifier: ^1.18.18
+        version: 1.18.18
       commander:
         specifier: ^12.1.0
         version: 12.1.0

@@ -258,6 +258,36 @@ implementación todavía, solo ordenado para cuando se retome.
    Alcance original completo de "Fase 7" versionada — depende de que
    5.1-5.4 ya den un loop real funcionando primero.
 
+6b. CERRADO — Fase 5.5b: puentear permisos reales de OpenCode con
+   IPolicyEngine. Cierra la brecha de seguridad documentada al cerrar
+   5.5: OpenCodeExecutionEngine ejecutaba tool calls sin que
+   IPolicyEngine las viera. Usa el módulo raíz (estable) del SDK real —
+   client.event.subscribe()/postSessionIdPermissionsPermissionId — no
+   /v2 (más inestable, con clases duplicadas). Ver ADR 0003 y commit
+   25ff014.
+
+6c. CERRADO — Fase 5.6: primer composition root real
+   (`guerrero agent run <projectId> <instruction>`). Cablea de punta a
+   punta OllamaProvider + ContextBuilder (Memory + Project
+   Intelligence real) + PolicyEvaluator + OpenCodeExecutionEngine en
+   apps/cli/src/commands/agent.ts. Verificado real en sandbox: conecta
+   a Postgres real, encuentra el proyecto real, levanta un servidor
+   opencode real, y falla exactamente al intentar embeber texto contra
+   Ollama inalcanzable (OllamaEmbeddingProvider, dentro de
+   ContextBuilder.build(), antes de llegar a ILLMProvider.generate()).
+   Dos hallazgos reales de esta auditoría, ambos documentados en el
+   commit: (a) `@opencode-ai/sdk`'s `server.close()` no libera el
+   proceso Node por sí solo — requiere `process.exit()` explícito al
+   final del comando, ya aplicado; (b) `OllamaEmbeddingProvider` (a
+   diferencia de `OllamaProvider`, endurecido en Fase 5.1) todavía
+   propaga errores de fetch sin un tipo `OllamaEmbeddingProviderError`
+   propio — brecha real, no bloqueante, candidata a housekeeping.
+   **Limitación conocida y esperada**: `PolicyEvaluator` se construye
+   sin reglas registradas (fail-closed) — el agente puede correr, pero
+   denegará toda tool call hasta que existan `PolicyRule`s reales, sin
+   evidencia todavía de cuáles hacen falta. Candidata natural al
+   siguiente paso.
+
 7. HOUSEKEEPING (no bloqueante, cuando convenga) — corregir el
    comentario desactualizado de packages/project-intelligence/src/index.ts
    (dice "implementación real llega en Fase 5-6"; la implementación
