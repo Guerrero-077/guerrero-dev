@@ -108,6 +108,27 @@ import { OpenCodeExecutionEngineError } from "./OpenCodeExecutionEngineError.js"
  * Verificado real, end-to-end, con el comando exacto que reveló el
  * problema (`agent run ... --model qwen2.5:7b-instruct-q4_K_M`, dos
  * corridas consecutivas): `Estado: succeeded` en ~25-33s, sin cuelgue.
+ *
+ * Fase 5.9e: con 5.9d ya arreglado, se reprodujo el mismo comando y
+ * Santiago reportó `Estado: succeeded` sin ninguna `Salida:` — no era el
+ * deadlock (confirmado: el permiso se pidió y se respondió rápido), sino
+ * que el turno terminaba sin texto. Verificado real, capturando el
+ * historial de la sesión en vivo vía la API REST del propio `opencode
+ * serve` mientras corría: el modelo leyó `package.json` con éxito, y
+ * después intentó reescribirlo con el texto numerado que le devolvió
+ * `read` (sintaxis JSON corrupta) — un permiso de `edit` real,
+ * correctamente denegado por `IPolicyEngine` fail-closed (comportamiento
+ * de seguridad correcto: se verificó a mano que aprobar esa escritura
+ * habría corrompido el archivo real). Después del rechazo, OpenCode no
+ * le da al modelo otro turno para responder en texto — el mensaje queda
+ * con `finish: "tool-calls"`, sin ninguna parte de tipo `text`, y sin
+ * `AssistantMessage.error` tampoco. Antes de este fix, `execute()`
+ * reportaba `status: "succeeded"` en ese caso — técnicamente cierto del
+ * lado del transporte, pero escondía que el agente no respondió nada.
+ * `findFailedToolError()` (declarada más abajo) detecta esta situación
+ * específica (sin texto, con una tool call en `state.status: "error"`,
+ * que cubre tanto rechazos de permiso como fallos reales de la tool) y
+ * la reporta como `status: "failed"` con un `errorMessage` legible.
  */
 interface SessionContext {
   readonly policyContext: PolicyContext;
@@ -233,10 +254,37 @@ export class OpenCodeExecutionEngine implements IExecutionEngine {
         const { info, parts } = response.data;
         const output = extractText(parts);
 
+        if (info.error) {
+          return {
+            planId: plan.id,
+            status: "failed",
+            errorMessage: JSON.stringify(info.error),
+            finishedAt: new Date(),
+          };
+        }
+
+        // Sin texto de salida, OpenCode no siempre marca AssistantMessage.error
+        // — un tool call rechazado (permiso denegado, fail-closed) o fallido
+        // deja el turno sin ninguna parte de texto, pero `info.error` queda
+        // undefined (Fase 5.9e, ver JSDoc de clase). Reportarlo igual como
+        // "succeeded" sin salida sería engañoso: el agente no le contestó
+        // nada al usuario y la razón real (qué tool falló y por qué) queda
+        // disponible en `findFailedToolError`.
+        if (output === undefined) {
+          const toolError = findFailedToolError(parts);
+          if (toolError !== undefined) {
+            return {
+              planId: plan.id,
+              status: "failed",
+              errorMessage: toolError,
+              finishedAt: new Date(),
+            };
+          }
+        }
+
         return {
           planId: plan.id,
-          status: info.error ? "failed" : "succeeded",
-          ...(info.error ? { errorMessage: JSON.stringify(info.error) } : {}),
+          status: "succeeded",
           ...(output !== undefined ? { output } : {}),
           finishedAt: new Date(),
         };
@@ -337,6 +385,28 @@ function extractText(parts: readonly { type: string; text?: string }[]): string 
     (part): part is { type: string; text: string } => part.type === "text" && part.text !== undefined,
   );
   return textParts.length > 0 ? textParts.map((part) => part.text).join("\n") : undefined;
+}
+
+/**
+ * Busca la primera tool call fallida o rechazada entre las partes de una
+ * respuesta sin ningún texto (Fase 5.9e). Caso real que motivó esto: un
+ * permiso denegado por `IPolicyEngine` (fail-closed, ver
+ * `handlePermissionEvents()`) deja el turno sin ninguna parte de texto
+ * — el modelo nunca vuelve a responder después del rechazo — pero
+ * `AssistantMessage.error` (`info.error`) queda `undefined` igual, y
+ * `session.prompt()` resuelve "bien" del lado del transporte. Sin esto,
+ * `execute()` reportaría `status: "succeeded"` sin salida, escondiendo
+ * que el agente no le contestó nada al usuario y por qué.
+ */
+function findFailedToolError(
+  parts: readonly { type: string; tool?: string; state?: { status?: string; error?: string } }[],
+): string | undefined {
+  for (const part of parts) {
+    if (part.type === "tool" && part.state?.status === "error" && part.state.error !== undefined) {
+      return `Tool "${part.tool ?? "?"}" falló: ${part.state.error}`;
+    }
+  }
+  return undefined;
 }
 
 /**

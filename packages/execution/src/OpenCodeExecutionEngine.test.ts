@@ -292,6 +292,41 @@ describe("OpenCodeExecutionEngine.execute() — respuesta del prompt", () => {
     const result = await engine.execute(plan, {});
 
     expect(result.output).toBeUndefined();
+    expect(result.status).toBe("succeeded");
+  });
+
+  it("sin texto y con una tool call rechazada/fallida (Fase 5.9e): status failed con el error real, no succeeded en silencio", async () => {
+    const { client } = fakeClient({
+      create: async () => ({ data: { id: "session-abc" }, error: undefined }),
+      prompt: async () => ({
+        data: {
+          info: {},
+          parts: [
+            { type: "step-start" },
+            {
+              type: "tool",
+              tool: "write",
+              state: {
+                status: "error",
+                error: "The user rejected permission to use this specific tool call.",
+              },
+            },
+            { type: "step-finish" },
+          ],
+        },
+        error: undefined,
+      }),
+    });
+    const { engine: policyEngine } = fakePolicyEngine(APPROVED_DECISION);
+    const { engine, plan } = await planned(client, policyEngine);
+
+    const result = await engine.execute(plan, {});
+
+    expect(result.status).toBe("failed");
+    expect(result.output).toBeUndefined();
+    expect(result.errorMessage).toBe(
+      'Tool "write" falló: The user rejected permission to use this specific tool call.',
+    );
   });
 
   it("session.prompt() con error de transporte lanza OpenCodeExecutionEngineError con reason request_failed", async () => {

@@ -446,6 +446,40 @@ implementación todavía, solo ordenado para cuando se retome.
    evalúa (denegado, `PolicyEvaluator` fail-closed sin reglas), se
    responde, y la sesión termina. Ver commit de esta sesión.
 
+6j. CERRADO — Fase 5.9e: `Estado: succeeded` engañoso sin ninguna
+   `Salida:`. Santiago corrió el mismo comando ya arreglado por 6i y
+   reportó exactamente eso — no era el deadlock (confirmado: el permiso
+   se pidió y se respondió rápido). Investigado capturando el historial
+   de la sesión en vivo (vía la API REST del propio `opencode serve`
+   mientras corría el comando real): el modelo leyó `package.json` con
+   éxito, y después intentó **reescribirlo** con el texto numerado que le
+   devolvió `read` (sintaxis JSON corrupta — verificado a mano que
+   aprobar esa escritura habría dañado el archivo real). Un permiso de
+   `edit` real, correctamente denegado por `IPolicyEngine` fail-closed —
+   el sistema de seguridad funcionó exactamente como debía. El problema
+   real: después del rechazo, OpenCode no le da al modelo otro turno
+   para responder en texto — el mensaje queda con `finish: "tool-calls"`,
+   sin ninguna parte de tipo `text` y sin `AssistantMessage.error`
+   tampoco, y `OpenCodeExecutionEngine.execute()` reportaba eso como
+   `status: "succeeded"` sin salida — técnicamente cierto del lado del
+   transporte, pero escondía que el agente no le contestó nada al
+   usuario. `findFailedToolError()` detecta este caso (sin texto, con
+   una tool call en `state.status: "error"` — cubre tanto rechazos de
+   permiso como fallos reales de la tool) y lo reporta como
+   `status: "failed"` con un `errorMessage` legible (tool + motivo real).
+   Verificado real: el mismo comando ahora devuelve
+   `Estado: failed` / `Error: Tool "webfetch" falló: The user rejected
+   permission...` en vez de quedar en silencio. Ver commit de esta
+   sesión.
+
+   **Nota de diseño, no resuelta acá**: por qué el modelo intenta
+   reescribir el archivo que acaba de leer (en vez de solo responder la
+   pregunta) es un problema de calidad de razonamiento del modelo chico,
+   no de este código — y por qué `agent run` no puede responder preguntas
+   de solo lectura sin que el fail-closed de `PolicyEvaluator` bloquee
+   todo (incluso acciones inofensivas si el modelo las intentara) es la
+   auditoría pendiente de la primera `PolicyRule` real, ítem 6c.
+
 7. HOUSEKEEPING (no bloqueante, cuando convenga) — corregir el
    comentario desactualizado de packages/project-intelligence/src/index.ts
    (dice "implementación real llega en Fase 5-6"; la implementación
