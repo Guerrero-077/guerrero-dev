@@ -288,6 +288,44 @@ implementación todavía, solo ordenado para cuando se retome.
    evidencia todavía de cuáles hacen falta. Candidata natural al
    siguiente paso.
 
+6d. CERRADO — Fase 5.7: Ollama como provider real de OpenCode, sin
+   cuenta cloud. La verificación de 5.6 en la máquina de Santiago
+   (Postgres + Ollama reales) llegó hasta `OpenCodeExecutionEngine.execute()`
+   colgado indefinidamente: sin ningún provider autenticado en OpenCode
+   (`opencode auth list` → 0 credenciales), `session.prompt()` nunca
+   resolvía. Verificado contra el paquete real instalado
+   (`@opencode-ai/sdk@1.18.18`): OpenCode soporta providers custom
+   OpenAI-compatibles vía `Config.provider[id]` (`npm:
+   "@ai-sdk/openai-compatible"` + `options.baseURL`), sin necesitar
+   `opencode auth login` ni cuenta cloud — coherente con el motivo por
+   el que ADR 0003 eligió OpenCode sobre Cline. `agent.ts` registra
+   Ollama como provider custom apuntando a `OLLAMA_BASE_URL` + `/v1`;
+   `OpenCodeExecutionEngine` gana un tercer parámetro (`providerId`,
+   sin hardcodear `"ollama"`) y pasa `model: {providerID, modelID}` en
+   cada `session.prompt()`. Ver commit `5ee24ec`.
+
+   **Verificado real por Santiago en su máquina**: `guerrero agent run`
+   completó de punta a punta por primera vez (`Estado: succeeded`) con
+   `gemma3:4b`. Pero la salida fue `{"name": "write", "arguments":
+   {...}}` como texto plano, no una tool call real interceptada por el
+   puente de Fase 5.5b (ningún evento `permission.updated` se disparó).
+   Hipótesis sin confirmar: soporte de tool-calling de `gemma3:4b` vía
+   Ollama, no un problema del wiring — ver 6e.
+
+6e. CERRADO (código) / PENDIENTE (diagnóstico) — Fase 5.8: flag
+   `--model` en `guerrero agent run`, para repetir el experimento de 6d
+   con otros modelos ya descargados (`qwen2.5-coder:7b`,
+   `qwen2.5:7b-instruct-q4_K_M`, `qwen3-coder`) sin editar variables de
+   entorno. No fija `tool_call: true` en el config del modelo — se
+   prueba primero con un modelo real, para no adivinar sin evidencia.
+   Ver commit pendiente de esta sesión.
+
+   **Pendiente**: resultado del diagnóstico de Santiago con
+   `--model qwen2.5-coder:7b` (o el que elija) — confirma si el
+   problema de 6d era específico de `gemma3:4b` (dispara
+   `permission.updated` real) o si persiste (siguiente paso:
+   `tool_call: true`, evaluado con evidencia nueva).
+
 7. HOUSEKEEPING (no bloqueante, cuando convenga) — corregir el
    comentario desactualizado de packages/project-intelligence/src/index.ts
    (dice "implementación real llega en Fase 5-6"; la implementación
