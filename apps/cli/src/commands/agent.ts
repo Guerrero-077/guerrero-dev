@@ -17,6 +17,34 @@ import { createOpencodeClient, createOpencodeServer } from "@opencode-ai/sdk";
 import { createCliContext } from "../context.js";
 
 /**
+ * Fase 5.9c: red de seguridad, no fix de causa raíz. Verificando 5.9b con
+ * `qwen2.5:7b-instruct-q4_K_M`, el modelo llamó `read` con
+ * `filePath: "/path/to/your/file.txt"` — un placeholder literal, copiado
+ * del propio texto de un error de esquema anterior en vez de sustituirlo
+ * por la ruta real — que OpenCode interpretó como fuera del proyecto y
+ * disparó permiso `external_directory`. Ese permiso quedó en estado
+ * `running` para siempre: `OpenCodeExecutionEngine.execute()` (Fase 5.5b)
+ * nunca lo vio pasar por `handlePermissionEvents()` para evaluarlo y
+ * responderlo. Hipótesis sin confirmar (no se pudo inspeccionar el
+ * binario `opencode` en tiempo de ejecución): `event.subscribe()` se
+ * suscribe con `query: { directory: policyContext.projectRootPath }` —
+ * un permiso de directorio EXTERNO al proyecto podría quedar fuera de ese
+ * filtro server-side, exactamente la categoría de evento más
+ * security-sensible para perder. `session.prompt()` nunca resuelve
+ * mientras esa sesión espera esa respuesta — deadlock real, sin relación
+ * con el hang de Fase 5.7b (ese ya estaba resuelto: acá `session.prompt()`
+ * jamás llega a resolver, no es que el listener no se cierre después).
+ * `EXECUTION_TIMEOUT_MS` activa `options.timeoutMs` (puerto
+ * `IExecutionEngine`, ya soportado desde Fase 5.7b pero nunca antes
+ * pasado desde ningún composition root real) como cota dura: convierte
+ * un deadlock silencioso en `Estado: failed` con `reason: "timeout"` en
+ * vez de un proceso colgado para siempre. No resuelve la causa — la dejo
+ * documentada en `docs/roadmap-maestro.md` como pendiente de auditoría.
+ * Reproducido en 2/2 corridas — no es un caso raro.
+ */
+const EXECUTION_TIMEOUT_MS = 120_000;
+
+/**
  * Primer composition root real (Fase 5.6): cablea de punta a punta las
  * piezas ya reales de Fase 5.1-5.5b — `OllamaProvider` (LLM),
  * `ContextBuilder` (Memory + Project Intelligence, con sus
@@ -166,7 +194,7 @@ export function registerAgentCommands(program: Command): void {
           modelName,
         };
 
-        const result = await orchestrator.run(task);
+        const result = await orchestrator.run(task, { timeoutMs: EXECUTION_TIMEOUT_MS });
 
         console.log(`Estado: ${result.status}`);
         if (result.output) console.log(`\nSalida:\n${result.output}`);

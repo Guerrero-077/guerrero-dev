@@ -364,6 +364,33 @@ implementación todavía, solo ordenado para cuando se retome.
    exactamente la garantía que esa clase dice ofrecer. Ver commit de
    esta sesión.
 
+6h. CERRADO (mitigación) / PENDIENTE (causa raíz) — Fase 5.9c:
+   deadlock real nuevo, encontrado al verificar 6g con
+   `qwen2.5:7b-instruct-q4_K_M`. El modelo llamó `read` con
+   `filePath: "/path/to/your/file.txt"` — un placeholder literal, copiado
+   del propio texto de un error de esquema anterior en vez de sustituirlo
+   por la ruta real — que OpenCode interpretó como fuera del proyecto y
+   disparó permiso `external_directory`. Ese permiso quedó en estado
+   `running` para siempre: `OpenCodeExecutionEngine.handlePermissionEvents()`
+   nunca lo vio pasar. Reproducido en 2/2 corridas, incluso con una
+   instrucción trivial sin relación a lectura de archivos — no es un caso
+   raro. `EXECUTION_TIMEOUT_MS = 120_000` activa `options.timeoutMs`
+   (puerto `IExecutionEngine`, soportado desde Fase 5.7b pero nunca antes
+   pasado desde ningún composition root real) como cota dura: convierte
+   el deadlock silencioso en `Estado: failed` con `reason: "timeout"` —
+   mitiga el síntoma, no la causa. Ver commit de esta sesión.
+
+   **Pendiente — auditoría de causa raíz**: hipótesis sin confirmar (no
+   se pudo inspeccionar el binario `opencode` en tiempo de ejecución):
+   `event.subscribe()` se suscribe con
+   `query: { directory: policyContext.projectRootPath }` — un permiso de
+   directorio EXTERNO al proyecto podría quedar fuera de ese filtro
+   server-side, exactamente la categoría de evento más security-sensible
+   para perder (intentos de escapar del directorio del proyecto). Si se
+   confirma, el fix real no es el timeout — es que `event.subscribe()`
+   deje de filtrar por `directory`, o se resuelva contra el directorio
+   real involucrado en cada permiso, no solo el del proyecto.
+
 7. HOUSEKEEPING (no bloqueante, cuando convenga) — corregir el
    comentario desactualizado de packages/project-intelligence/src/index.ts
    (dice "implementación real llega en Fase 5-6"; la implementación
