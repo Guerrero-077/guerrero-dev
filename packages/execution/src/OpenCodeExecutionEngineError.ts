@@ -12,8 +12,16 @@
  * no del orquestador que la usa. Un rechazo de la promesa del propio
  * cliente (red caída, servidor no arrancó) no se reenvuelve aquí: se
  * propaga con su propio tipo.
+ *
+ * `"timeout"` (fix de hang) cubre `options.timeoutMs` vencido antes de
+ * que `session.prompt()` resolviera — distinto de un abort intencional
+ * de cleanup del listener de eventos (ese nunca llega a producir esta
+ * excepción, se trata como benigno dentro de `execute()`).
  */
-export type OpenCodeExecutionEngineErrorReason = "request_failed" | "missing_policy_context";
+export type OpenCodeExecutionEngineErrorReason =
+  | "request_failed"
+  | "missing_policy_context"
+  | "timeout";
 
 /** Error tipado que encapsula un fallo de transporte/protocolo de `OpenCodeExecutionEngine`. */
 export class OpenCodeExecutionEngineError extends Error {

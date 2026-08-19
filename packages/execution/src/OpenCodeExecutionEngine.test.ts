@@ -17,16 +17,24 @@ import { OpenCodeExecutionEngineError } from "./OpenCodeExecutionEngineError.js"
  */
 function fakeClient(handlers: {
   create?: (args: unknown) => Promise<unknown>;
-  prompt?: (args: unknown) => Promise<unknown>;
+  prompt?: (args: { path: unknown; body: unknown; signal?: AbortSignal }) => Promise<unknown>;
   events?: readonly Event[];
+  eventsFactory?: (signal?: AbortSignal) => AsyncGenerator<Event>;
   onPermissionReply?: (args: unknown) => Promise<unknown>;
 }): {
   client: OpencodeClient;
-  calls: { create: unknown[]; prompt: unknown[]; permissionReply: unknown[]; abort: unknown[] };
+  calls: {
+    create: unknown[];
+    prompt: unknown[];
+    eventSubscribe: unknown[];
+    permissionReply: unknown[];
+    abort: unknown[];
+  };
 } {
   const calls = {
     create: [] as unknown[],
     prompt: [] as unknown[],
+    eventSubscribe: [] as unknown[],
     permissionReply: [] as unknown[],
     abort: [] as unknown[],
   };
@@ -38,7 +46,7 @@ function fakeClient(handlers: {
           ? await handlers.create(args)
           : { data: { id: "session-1" }, error: undefined };
       },
-      async prompt(args: unknown) {
+      async prompt(args: { path: unknown; body: unknown; signal?: AbortSignal }) {
         calls.prompt.push(args);
         return handlers.prompt
           ? await handlers.prompt(args)
@@ -53,8 +61,13 @@ function fakeClient(handlers: {
       },
     },
     event: {
-      async subscribe() {
-        return { stream: toAsyncGenerator(handlers.events ?? []) };
+      async subscribe(args?: { query?: unknown; signal?: AbortSignal }) {
+        calls.eventSubscribe.push(args);
+        return {
+          stream: handlers.eventsFactory
+            ? handlers.eventsFactory(args?.signal)
+            : toAsyncGenerator(handlers.events ?? []),
+        };
       },
     },
     async postSessionIdPermissionsPermissionId(args: unknown) {
@@ -211,6 +224,7 @@ describe("OpenCodeExecutionEngine.execute() — respuesta del prompt", () => {
           model: { providerID: TEST_PROVIDER_ID, modelID: "qwen2.5-coder:7b" },
           parts: [{ type: "text", text: "arregla el bug en el login" }],
         },
+        signal: expect.any(AbortSignal),
       },
     ]);
   });
@@ -388,5 +402,97 @@ describe("OpenCodeExecutionEngine.execute() — puente de permisos (Fase 5.5b)",
 
     await expect(engine.execute(plan, {})).rejects.toBe(evaluateError);
     expect(calls.abort).toEqual([{ path: { id: "session-abc" } }]);
+  });
+});
+
+/**
+ * Regresión del hang real (confirmado empíricamente contra un servidor
+ * `opencode serve` real, ver JSDoc de clase de `OpenCodeExecutionEngine`):
+ * el stream de `event.subscribe()` no se cierra solo cuando la sesión
+ * termina — solo lo hace si se cancela vía el `AbortSignal` recibido.
+ * Estos generadores simulan exactamente eso: nunca producen ningún
+ * evento ni terminan por su cuenta, solo reaccionan cuando `execute()`
+ * aborta el controller compartido tras `session.prompt()`. Si el fix
+ * estuviera ausente o roto, la promesa interna nunca se resuelve y el
+ * test falla por su propio timeout (tercer argumento de `it`) en vez de
+ * colgar el runner entero.
+ */
+function neverEndingUntilAborted(signal?: AbortSignal): AsyncGenerator<Event> {
+  return (async function* () {
+    await new Promise<void>((resolve) => {
+      signal?.addEventListener("abort", () => resolve(), { once: true });
+    });
+    // Simula reader.cancel(): el stream termina prolijamente tras el abort.
+  })();
+}
+
+function throwsAbortErrorOnAbort(signal?: AbortSignal): AsyncGenerator<Event> {
+  return (async function* () {
+    await new Promise<void>((_resolve, reject) => {
+      signal?.addEventListener(
+        "abort",
+        () => {
+          const err = new Error("The operation was aborted");
+          err.name = "AbortError";
+          reject(err);
+        },
+        { once: true },
+      );
+    });
+  })();
+}
+
+describe("OpenCodeExecutionEngine.execute() — regresión del hang (fix)", () => {
+  it("sin ningún permission.updated y sin que el stream de eventos se cierre solo, execute() igual resuelve apenas prompt() responde", async () => {
+    const { client } = fakeClient({
+      create: async () => ({ data: { id: "session-abc" }, error: undefined }),
+      eventsFactory: neverEndingUntilAborted,
+    });
+    const { engine: policyEngine } = fakePolicyEngine(APPROVED_DECISION);
+    const { engine, plan } = await planned(client, policyEngine);
+
+    const result = await engine.execute(plan, {});
+
+    expect(result.status).toBe("succeeded");
+  }, 2000);
+
+  it("si el cierre del stream lanza AbortError en vez de terminar prolijamente, se trata como benigno: no aborta la sesión real ni propaga el error", async () => {
+    const { client, calls } = fakeClient({
+      create: async () => ({ data: { id: "session-abc" }, error: undefined }),
+      eventsFactory: throwsAbortErrorOnAbort,
+    });
+    const { engine: policyEngine } = fakePolicyEngine(APPROVED_DECISION);
+    const { engine, plan } = await planned(client, policyEngine);
+
+    const result = await engine.execute(plan, {});
+
+    expect(result.status).toBe("succeeded");
+    expect(calls.abort).toEqual([]);
+  }, 2000);
+
+  it("options.timeoutMs aborta session.prompt() si no respondió a tiempo y lanza OpenCodeExecutionEngineError con reason timeout", async () => {
+    const { client } = fakeClient({
+      create: async () => ({ data: { id: "session-abc" }, error: undefined }),
+      prompt: (args) =>
+        new Promise((_resolve, reject) => {
+          args.signal?.addEventListener(
+            "abort",
+            () => {
+              const err = new Error("aborted");
+              err.name = "AbortError";
+              reject(err);
+            },
+            { once: true },
+          );
+        }),
+    });
+    const { engine: policyEngine } = fakePolicyEngine(APPROVED_DECISION);
+    const { engine, plan } = await planned(client, policyEngine);
+
+    const error = await engine.execute(plan, { timeoutMs: 5 }).catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(OpenCodeExecutionEngineError);
+    expect((error as OpenCodeExecutionEngineError).reason).toBe("timeout");
+    expect((error as OpenCodeExecutionEngineError).message).toMatch(/no respondió dentro de 5ms/);
   });
 });

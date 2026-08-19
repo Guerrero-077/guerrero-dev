@@ -28,6 +28,16 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
  * alcanzable (mismo hallazgo de Fase 5.1). Verificar ese camino
  * completo end-to-end contra un LLM real queda para la máquina de
  * Santiago.
+ *
+ * El fix del hang de `execute()` (el `AbortController` compartido que
+ * cierra la suscripción de eventos apenas `session.prompt()` resuelve,
+ * en vez de esperar a que el stream se cierre solo) se validó con tests
+ * unitarios deterministas contra dobles de `event.subscribe()`/
+ * `session.prompt()` (`OpenCodeExecutionEngine.test.ts`) — reproducir acá
+ * un "stream que nunca cierra" contra un servidor real no es factible de
+ * forma determinista. La confirmación empírica de que el hang ya no
+ * ocurre contra un LLM real queda, igual que el resto del camino feliz,
+ * para la máquina de Santiago.
  */
 const RUN = process.env["RUN_INTEGRATION_TESTS"] === "true";
 
