@@ -858,12 +858,12 @@ entrada propia fue 6b. Ver también el resumen de estado real en §3.
    `5ad3370`; lo que le faltaba era consumidor, confirmado con
    `git log`, no con una suposición.
 
-7. HOUSEKEEPING (no bloqueante, cuando convenga) — corregir el
-   comentario desactualizado de packages/project-intelligence/src/index.ts
-   (dice "implementación real llega en Fase 5-6"; la implementación
-   real llegó a domain/project + domain/code en su lugar). Señalado ya
-   en el mapa de Fase 6 §9a y en fase-6-to-7-reconciliation.md §3 — se
-   agrupa aquí para no perderlo, sin bloquear nada.
+7. CERRADO — HOUSEKEEPING: comentario de packages/project-intelligence/src/index.ts
+   corregido. Decía "implementación real llega en Fase 5-6"; ahora
+   documenta dónde aterrizó de verdad (`domain/project` + `domain/code`,
+   con sus servicios/adapters en `application`/`infrastructure`) y por
+   qué el package sigue siendo placeholder a propósito, con referencia a
+   `fase-6-to-7-reconciliation.md` §3. Build/lint limpios.
 
 8. DIFERIDO, sin evidencia todavía — Fase 6 (Developer Tools), Fase 7
    (Autonomous Workflows): no se auditan hasta que 5.1-5.5 den un loop
