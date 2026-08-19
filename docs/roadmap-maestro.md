@@ -38,7 +38,8 @@ Fase 1 — Foundation + Agent Core skeleton   ✅ COMPLETADA
 Fase 2 — Memory System                      ✅ COMPLETADA
 Fase 3 — Project Intelligence               ✅ COMPLETADA
 Fase 4 — Code Intelligence                  ✅ COMPLETADA
-Fase 5 — Agent Core real (LLM conectado)    🟡 EN PROGRESO (ver §3)
+Fase 5 — Agent Core real (LLM conectado)    ✅ COMPLETADA (sustancial —
+                                               6p diferido, ver §3)
 Fase 6 — Developer Tools                    ⛔ NO INICIADA
 Fase 7 — Autonomous Workflows               ⛔ NO INICIADA
 Fase 8 — Personal Engineering Profile       🔵 EVOLUTIVO
@@ -111,8 +112,10 @@ separada de Project Intelligence, ver Fase 5.4.
 
 ### Fase 5 — Agent Core real (LLM conectado)
 
-**Estado: 🟡 En progreso, grueso del transporte ya cerrado.**
-Corresponde a "Fase 7: Cline/OpenCode Integration" del repo real. El
+**Estado: ✅ Completada (sustancialmente) — ver
+`docs/fase-7-cline-opencode-integration-closure.md`.** 6p queda
+diferido con evidencia (§7, entrada 6r), no bloqueante. Corresponde a
+"Fase 7: Cline/OpenCode Integration" del repo real. El
 hallazgo que abrió esta fase (`AgentOrchestrator.run()` construía
 `BuiltContext` y lo descartaba, nunca invocaba `ILLMProvider.generate()`,
 `PolicyEngine` inyectado pero no llamado dentro de `run()`) ya no
@@ -234,7 +237,7 @@ generación (serie H).
 | Fase 2 | Fase 4 — Memory System | `docs/fase-4-memory-engine-closure.md` |
 | Fase 3 | Fase 5 — Project Intelligence | `docs/fase-5-project-intelligence-closure.md` |
 | Fase 4 | Fase 6 — Code Intelligence | `docs/fase-6-code-intelligence-closure.md` |
-| Fase 5 | Fase 7 — Cline/OpenCode Integration | (en progreso — sin closure doc propio todavía, ver §3/§7 de este documento) |
+| Fase 5 | Fase 7 — Cline/OpenCode Integration | `docs/fase-7-cline-opencode-integration-closure.md` (sustancialmente CLOSED, 6p diferido) |
 | Fase 6-9 | (no existían en el roadmap versionado real) | (nuevos, a auditar cuando corresponda) |
 
 Los documentos de cierre existentes (Fase 3/4/5/6 reales) no se tocan,
