@@ -1305,6 +1305,32 @@ entrada propia fue 6b. Ver también el resumen de estado real en §3.
    `AllowScopedMutationRule` (no hacía falta — ya estaba lista desde
    6.3, esperando exactamente esto).
 
+8g. **CIERRA el "Pendiente real" de 8f — confirmado con `edit` de verdad,
+   en ambas direcciones, con `qwen2.5:7b-instruct-q4_K_M`.** Corrida real
+   contra un directorio de prueba descartable (no el repo, mismo criterio
+   de seguridad de toda esta investigación):
+
+   - **Caso positivo**: "editá `package.json`, agregá una línea al
+     final" → log real de `opencode`: `message=asking ... permission=edit`
+     (evento real, no por sustitución con `read` como en 8f) →
+     `AllowScopedMutationRule.evaluateEdit()` aprobó (path real dentro de
+     `projectRootPath`, fuera de la deny-list) → el archivo cambió de
+     verdad → `Estado: succeeded`.
+   - **Caso negativo**: misma instrucción contra `.env` → mismo
+     `permission=edit` real pedido → `AllowScopedMutationRule` denegó
+     (deny-list) → `.env` quedó intacto → `Estado: failed` (`"The user
+     rejected permission..."`).
+
+   El mecanismo (`BUILD_AGENT_PERMISSION` + `AllowScopedMutationRule`)
+   queda confirmado de punta a punta, sin pendientes de wiring ni de
+   seguridad. Lo único que sigue siendo una limitación real, separada,
+   ya documentada (`memory.md` ítem 7, roadmap 6f/6h/6m/6p): en la
+   corrida positiva el modelo reemplazó el contenido completo de
+   `package.json` en vez de hacer append — calidad de tool-calling del
+   modelo 7B cuantizado, no un problema de este código. Detalle
+   registrado en `memory.md` (raíz del repo, no trackeado por git) —
+   ítem 9, junto al resto de errores conocidos del proyecto.
+
 9. EVOLUTIVO, sin evidencia todavía — Fase 8 (Personal Engineering
    Profile), Fase 9 (Continuous Learning), MemoryEmbedding
    autogenerado en promoción (gap operacional ya documentado en cierre
