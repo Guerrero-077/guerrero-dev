@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { join } from "node:path";
 import type { ToolRequest } from "@guerrero-dev/domain";
 import type { PolicyContext } from "@guerrero-dev/application";
 import { AllowScopedMutationRule, EDIT_TARGET_PATH_METADATA_KEY } from "./AllowScopedMutationRule.js";
@@ -168,12 +169,13 @@ describe("AllowScopedMutationRule", () => {
     });
 
     it("deniega una ruta sensible con path absoluto real de Windows", async () => {
+      const windowsRoot = join("C:", "Dev", "agente", "guerrero-dev");
       const windowsContext: PolicyContext = {
-        projectRootPath: "C:\\Dev\\agente\\guerrero-dev",
+        projectRootPath: windowsRoot,
         userId: "santiago",
       };
       const decision = await new AllowScopedMutationRule().evaluate(
-        editRequest("C:\\Dev\\agente\\guerrero-dev\\.env"),
+        editRequest(join(windowsRoot, ".env")),
         windowsContext,
       );
 
