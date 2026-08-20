@@ -4,14 +4,10 @@ Guía de convenciones para ramas, commits y flujo de trabajo.
 
 ## Convencional Commits
 
-Todo commit en `main` debe seguir el formato [Conventional Commits v1.0.0](https://www.conventionalcommits.org/):
+Todo commit debe seguir [Conventional Commits v1.0.0](https://www.conventionalcommits.org/):
 
 ```
 <tipo>(<scope>): <descripción corta>
-
-[ cuerpo opcional ]
-
-[ footer opcional ]
 ```
 
 ### Tipos permitidos
@@ -19,8 +15,8 @@ Todo commit en `main` debe seguir el formato [Conventional Commits v1.0.0](https
 | Tipo | Uso | Ejemplo |
 |------|-----|---------|
 | `feat` | Nueva funcionalidad | `feat(agent-core): Fase 5.2 — AgentOrchestrator consumes BuiltContext` |
-| `fix` | Corrección de bug | `fix(execution): resolver hang en OpenCodeExecutionEngine.execute()` |
-| `docs` | Solo documentación | `docs: actualizar roadmap-maestro §2/§3 al estado real` |
+| `fix` | Corrección de bug | `fix(execution): resolver hang en OpenCodeExecutionEngine` |
+| `docs` | Solo documentación | `docs: actualizar roadmap-maestro §2/§3` |
 | `refactor` | Reestructurar sin cambiar comportamiento | `refactor(infrastructure): extraer OllamaProviderError` |
 | `test` | Agregar o modificar tests | `test(agent-core): AllowScopedMutationRule — 21 casos` |
 | `chore` | Tareas de mantenimiento | `chore: cargar .env en el CLI` |
@@ -30,8 +26,6 @@ Todo commit en `main` debe seguir el formato [Conventional Commits v1.0.0](https
 | `revert` | Revertir un commit | `revert: feat(agent-core): Fase 5.2` |
 
 ### Scopes del proyecto
-
-Los scopes corresponden a los packages del monorepo:
 
 | Scope | Package |
 |-------|---------|
@@ -44,186 +38,291 @@ Los scopes corresponden a los packages del monorepo:
 | `shared` | `packages/shared` |
 | `cli` | `apps/cli` |
 | `api` | `apps/api` |
-
-Scopes adicionales válidos:
-
-| Scope | Uso |
-|-------|-----|
 | `docs` | Documentación general (`docs/`) |
 | `scripts` | Scripts utilitarios (`scripts/`) |
-| `root` | Archivos de raíz (sin scope específico) |
 
-### Formato de la descripción
+### Reglas de commits
 
 - **En inglés** por convención del proyecto (código e identificadores en inglés)
 - **Imperativo**: "add feature" no "added feature" ni "adds feature"
 - **Sin punto final**
 - **Máximo 72 caracteres** en la primera línea
+- **Un commit = un cambio lógico** (atómico)
 - Si hay scope, separar con `:` y un espacio
 
 ### Ejemplos reales del proyecto
 
 ```bash
-# Features (nueva funcionalidad)
+# Features
 feat(agent-core): Fase 5.2 — AgentOrchestrator consumes BuiltContext
 feat(infrastructure): Fase 5.1 — harden OllamaProvider
 feat(domain): add domain/code (Fase 6.1) — CodeSymbol, DependencyEdge, CodeIndex
 feat(cli): agrega comando 'project get <id>'
 
-# Docs (solo documentación)
+# Docs
 docs: Fase 6 - causa raíz definitiva confirmada
 docs: actualizar roadmap-maestro §2/§3/§6/§7 al estado real post-5.14
 
-# Fix (corrección)
+# Fix
 fix(execution): resolver hang en OpenCodeExecutionEngine.execute()
 
-# Chore (mantenimiento)
+# Chore
 chore: cargar .env en el CLI y sacar credenciales hardcodeadas
 ```
 
-### Commits de fase (patrón del proyecto)
+---
 
-Los commits que documentan el progreso de una fase usan el prefijo del nombre de fase:
+## Flujo de Ramas
 
-```
-Fase 5.14: conectar el contexto real (Memory + Project Intelligence) al agente
-Fase 6.3: primera PolicyRule de mutación (AllowScopedMutationRule)
-```
-
-Esto es un patrón válido del proyecto, equivalente a `feat` con documentación integrada.
-
-## Manejo de Ramas
-
-### Convención de nombres
+### Estructura
 
 ```
-<tipo>/<descripción-corta-en-kebab-case>
+main          ← producción (protegida)
+  ↑
+staging       ← pre-producción (protegida)
+  ↑
+qa            ← testing (protegida)
+  ↑
+develop       ← integración (protegida)
+  ↑
+feature/*     ← trabajo individual
+fix/*         ← correcciones urgentes
 ```
 
-| Tipo | Ejemplo | Uso |
-|------|---------|-----|
-| `feature/` | `feature/fase7-autonomous-workflows` | Nueva funcionalidad |
-| `fix/` | `fix/deadlock-permissions` | Corrección de bug |
-| `docs/` | `docs/update-roadmap` | Solo documentación |
-| `chore/` | `chore/cleanup-deps` | Mantenimiento |
+### Reglas generales
 
-**Reglas:**
-- Todo en minúsculas
-- Separador: `-` (kebab-case)
-- Sin números de issue prefijados (el proyecto no usa issue tracker formal)
-- Descriptivo pero conciso
+| Regla | Razón |
+|-------|-------|
+| **Nunca commitear directamente a `main`/`staging`/`qa`/`develop`** | Todo pasa por PR y CI |
+| **Rebase, no merge** | Historial lineal entre ramas de integración |
+| **Eliminar ramas después del merge** | Evitar acumulación |
+| **Usar `git switch` en lugar de `git checkout`** | Comando moderno, propósito único |
+| **Usar `--force-with-lease` en lugar de `--force`** | Seguro para rebase en ramas protegidas |
 
-### Flujo de trabajo
+### Comandos modernos de git
 
-```
-main ← feature/nombre-rama ← trabajo ← merge a main ← eliminar rama
-```
+| Antes (obsoleto) | Ahora (correcto) | Uso |
+|---|---|---|
+| `git checkout main` | `git switch main` | Cambiar de rama |
+| `git checkout -b feature/x` | `git switch -c feature/x` | Crear rama nueva |
+| `git checkout -- file` | `git restore file` | Descartar cambios |
+| `git checkout .` | `git restore .` | Descartar todos los cambios |
 
-#### 1. Crear rama desde `main`
+---
+
+### Flujo 1: Feature → develop (squash + merge)
 
 ```bash
-git checkout main
-git pull origin main
-git checkout -b feature/nombre-descriptivo
-```
+# 1. Crear rama desde develop
+git switch develop
+git pull origin develop
+git switch -c feature/nombre-descriptivo
 
-#### 2. Trabajar y commitear
-
-```bash
+# 2. Trabajar y commitear
 git add .
-git commit -m "feat(scope): descripción clara"
-```
+git commit -m "feat(scope): descripción"
 
-Cada commit debe ser atómico: un cambio lógico por commit.
+# 3. Push y PR
+git push origin feature/nombre-descriptivo
+# Abrir PR en GitHub: feature/nombre → develop
 
-#### 3. Mantener la rama actualizada con `main`
-
-```bash
-git fetch origin
-git rebase origin/main
-# resolver conflictos si los hay
-git rebase --continue
-```
-
-**No hacer merge de `main` en la feature rama** — usar rebase para mantener el historial lineal.
-
-#### 4. Merge a `main`
-
-```bash
-git checkout main
-git merge --no-ff feature/nombre-descriptivo -m "merge: feature/nombre-descriptivo"
-git push origin main
-```
-
-Usar `--no-ff` para preservar el contexto de la rama en el historial.
-
-#### 5. Eliminar rama local y remota
-
-```bash
+# 4. CI verifica: build + typecheck + lint
+# 5. Review aprobado → Squash + merge en GitHub
+# 6. Eliminar rama
+git switch develop
 git branch -d feature/nombre-descriptivo
 git push origin --delete feature/nombre-descriptivo
 ```
 
-### Reglas de ramas
+### Flujo 2: develop → qa (rebase lineal)
 
-| Regla | Razón |
-|-------|-------|
-| **Nunca commitear directamente a `main`** | `main` es la fuente de verdad; todo pasa por rama |
-| **Rebase, no merge** | Historial lineal, sin commits de merge innecesarios |
-| **Eliminar ramas después del merge** | Evitar acumulación de ramas obsoletas |
-| **No renombrar ramas ya pushadas** | Rompe la referencia para otros |
-| **Una tarea = una rama** | Si una rama crece demasiado, splittear |
+```bash
+# 1. Actualizar develop
+git switch develop
+git pull origin develop
 
-### Worktrees (opcional)
+# 2. Rebase qa sobre develop
+git switch qa
+git pull origin qa
+git rebase develop
 
-Para trabajar en múltiples ramas simultáneamente sin cambiar de rama:
+# 3. Resolver conflictos si los hay
+# git rebase --continue  (para continuar)
+# git rebase --abort     (para cancelar)
+
+# 4. Push con force-with-lease
+git push origin qa --force-with-lease
+
+# 5. CI verifica: build + typecheck + integration tests
+# 6. QA manual: probar funcionalidad
+```
+
+### Flujo 3: qa → staging (rebase lineal)
+
+```bash
+# 1. Actualizar qa
+git switch qa
+git pull origin qa
+
+# 2. Rebase staging sobre qa
+git switch staging
+git pull origin staging
+git rebase qa
+
+# 3. Push con force-with-lease
+git push origin staging --force-with-lease
+
+# 4. CI verifica: build + typecheck + test + lint
+# 5. Smoke tests contra staging
+```
+
+### Flujo 4: staging → main (rebase lineal)
+
+```bash
+# 1. Actualizar staging
+git switch staging
+git pull origin staging
+
+# 2. Rebase main sobre staging
+git switch main
+git pull origin main
+git rebase staging
+
+# 3. Push con force-with-lease
+git push origin main --force-with-lease
+
+# 4. Deploy automático a producción
+```
+
+### Flujo 5: Fix urgente (hotfix)
+
+```bash
+# 1. Crear rama desde main
+git switch main
+git pull origin main
+git switch -c fix/nombre-del-fix
+
+# 2. Aplicar fix
+git add .
+git commit -m "fix(scope): descripción del fix"
+
+# 3. Push y PR
+git push origin fix/nombre-del-fix
+# Abrir PR: fix/nombre → main
+
+# 4. Después del merge, propagar a staging y develop
+git switch staging
+git pull origin staging
+git rebase main
+git push origin staging --force-with-lease
+
+git switch develop
+git pull origin develop
+git rebase staging
+git push origin develop --force-with-lease
+```
+
+---
+
+## Branch Protection Rules (GitHub)
+
+Configurar en **Settings → Branches → Add rule**:
+
+### `main`
+
+| Setting | Valor |
+|---------|-------|
+| Require pull request | ✅ |
+| Required approvals | 1 |
+| Dismiss stale reviews | ✅ |
+| Require status checks | ✅ |
+| Required checks | `ci`, `integration` |
+| Require branches up to date | ✅ |
+| Require conversation resolution | ✅ |
+| No force pushes | ✅ |
+| No deletions | ✅ |
+| Require linear history | ✅ |
+
+### `staging`
+
+| Setting | Valor |
+|---------|-------|
+| Require pull request | ✅ |
+| Required approvals | 1 |
+| Require status checks | ✅ |
+| Required checks | `ci`, `integration` |
+| No force pushes | ✅ |
+| Require linear history | ✅ |
+
+### `qa`
+
+| Setting | Valor |
+|---------|-------|
+| Require pull request | ✅ |
+| Required approvals | 1 |
+| Require status checks | ✅ |
+| Required checks | `ci` |
+| No force pushes | ✅ |
+| Require linear history | ✅ |
+
+### `develop`
+
+| Setting | Valor |
+|---------|-------|
+| Require status checks | ✅ |
+| Required checks | `ci` |
+| No force pushes | ✅ |
+
+---
+
+## Worktrees (opcional)
+
+Para trabajar en múltiples ramas simultáneamente:
 
 ```bash
 # Crear worktree
 git worktree add ../nombre-del-worktree feature/nombre-rama
 
-# Trabajar en el worktree
+# Trabajar
 cd ../nombre-del-worktree
 # ... commits ...
 
 # Volver al worktree principal
 cd /ruta/al/proyecto/principal
 
-# Eliminar worktree después de merge
+# Eliminar después de merge
 git worktree remove ../nombre-del-worktree
-git worktree prune  # limpiar referencias huérfanas
+git worktree prune
 ```
 
-**Regla:** eliminar worktrees cuando la rama asociada se mergea o se descarta.
+**Regla:** eliminar worktrees cuando la rama se mergea o se descarta.
+
+---
 
 ## Verificación antes de merge
 
-Antes de mergear una rama a `main`:
-
 ```bash
-# 1. Build debe pasar
+# Build debe pasar
 pnpm build
 
-# 2. Typecheck debe pasar
+# Typecheck debe pasar
 pnpm typecheck
 
-# 3. Tests unitarios deben pasar
+# Tests unitarios deben pasar
 pnpm test
 
-# 4. Lint limpio
+# Lint limpio
 pnpm lint
-```
 
-Si hay tests de integración/e2e, correrlos también:
-
-```bash
+# Integration tests (para qa/staging/main)
 pnpm test:integration
-pnpm test:e2e
 ```
+
+---
 
 ## Historial limpio
 
-### Antes de merge, si hay commits sucios
+### Squash commits antes de merge
 
 ```bash
 # Reordenar los últimos N commits interactivamente
@@ -235,23 +334,27 @@ squash def5678 feat: segunda parte
 # → queda un solo commit
 ```
 
-### Si se hizo merge accidental a main
+### Revert de merge accidental
 
-No hacer `git reset --hard` en ramas ya pushadas. En su lugar:
+No hacer `git reset --hard` en ramas ya pushadas:
 
 ```bash
-# Crear nueva rama desde el estado correcto
-git checkout main
-git checkout -b fix/revert-merge
+git switch main
+git switch -c fix/revert-merge
 git revert -m 1 <merge-commit-hash>
 git push origin fix/revert-merge
 # Crear PR o merge normalmente
 ```
 
+---
+
 ## Resumen rápido
 
 ```
-Rama:    feature/nombre → commit → rebase → merge --no-ff → delete
-Commit:  tipo(scope): descripción corta (imperativo, sin punto)
-Build:   pnpm build → pnpm typecheck → pnpm test → pnpm lint
+Rama:       feature/* → PR → squash → develop
+Integración: develop → qa → staging → main (rebase lineal)
+Commit:     tipo(scope): descripción (imperativo, sin punto, <72 chars)
+Build:      pnpm build → pnpm typecheck → pnpm test → pnpm lint
+Comandos:   git switch (no checkout), git restore (no checkout --)
+Push:       --force-with-lease (nunca --force)
 ```

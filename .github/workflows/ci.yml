@@ -1,68 +1,44 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
+    branches: [develop, qa, staging, main]
+  push:
+    branches: [develop, qa, staging, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build-test:
+  ci:
+    name: Build + Typecheck + Lint + Tests
     runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: pgvector/pgvector:pg17
-        env:
-          POSTGRES_USER: guerrero
-          POSTGRES_PASSWORD: guerrero
-          POSTGRES_DB: guerrero_dev
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U guerrero -d guerrero_dev"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    env:
-      DATABASE_URL: postgresql://guerrero:guerrero@localhost:5432/guerrero_dev
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: ".nvmrc"
-          cache: "pnpm"
+          node-version: 24
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
-        run: pnpm lint
-
-      - name: Format check
-        run: pnpm format:check
-
-      # Build antes que typecheck: apps/api expone `./app` vía "exports" y
-      # los tests de integración/e2e importan ese subpath compilado
-      # (dist/app.d.ts), así que necesita existir antes de typechequear
-      # tests/ y antes de correr los tests.
       - name: Build
         run: pnpm build
 
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Lint
+        run: pnpm lint
+
       - name: Unit tests
         run: pnpm test
-
-      - name: Integration tests
-        run: pnpm test:integration
-
-      - name: E2E tests
-        run: pnpm test:e2e
-
-  # Fase 3.18 — posteriormente: security scan, dependency audit, container scan.

@@ -1,0 +1,62 @@
+name: Integration Tests
+
+on:
+  pull_request:
+    branches: [qa, staging, main]
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: Integration + E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: guerrero_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:test@localhost:5432/guerrero_test
+      OLLAMA_BASE_URL: http://localhost:11434
+      RUN_INTEGRATION_TESTS: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Run migrations
+        run: pnpm migrate
+
+      - name: Integration tests
+        run: pnpm test:integration
+
+      - name: E2E tests
+        run: pnpm test:e2e
