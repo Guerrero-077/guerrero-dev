@@ -1170,12 +1170,76 @@ entrada propia fue 6b. Ver también el resumen de estado real en §3.
    en 8c) es que el catálogo del agente `build` en modo servidor headless
    simplemente no incluye `edit`/`bash`/`write`/`webfetch` por diseño de
    OpenCode — y el único mecanismo que los agrega (`body.tools`) es
-   además el que bypassea `Config.permission`. No hay más candidatos de
-   config sin probar identificados en esta sesión; el siguiente paso real
-   requeriría inspeccionar el código fuente de OpenCode (si está
-   disponible, no solo el binario compilado) o preguntar río arriba
-   (issue/discusión del proyecto `opencode-ai`) — fuera de alcance de una
-   sesión de diagnóstico contra un binario de terceros.
+   además el que bypassea `Config.permission`.
+
+8e. CERRADO (causa raíz confirmada río arriba) — se hizo lo que 8d dejaba
+   como "siguiente paso": se inspeccionó el código fuente real de
+   OpenCode (`github.com/anomalyco/opencode` — mismo repo que
+   `sst/opencode`, la organización renombró el repo; confirmado que
+   ambas URLs resuelven al mismo `full_name`, no son proyectos
+   distintos), tag `v1.18.18` exacto (coincide con la versión instalada,
+   `opencode-ai@1.18.18`), más el propio issue tracker del proyecto.
+
+   Trazado completo del pipeline real (`packages/opencode/src/tool/registry.ts`,
+   `packages/opencode/src/session/tools.ts`, `packages/opencode/src/agent/agent.ts`,
+   `packages/opencode/src/config/agent.ts`, `packages/core/src/agent.ts`,
+   `packages/openai-compatible/src/chat/openai-compatible-prepare-tools.ts`
+   del paquete real `@ai-sdk/openai-compatible` que usamos como provider):
+   en NINGUNA de estas capas se consume `Config.agent.build.tools` (ni el
+   campo `tools` de la config de un agente en general) para decidir el
+   catálogo — el array `builtin` de `ToolRegistry` incluye `edit`/`write`/
+   `bash`(`shell`)/`webfetch`(`fetch`) **incondicionalmente** para
+   cualquier modelo no-GPT, y `SessionTools.resolve()` agrega TODO lo que
+   la registry devuelve sin filtrar por agente. Confirmado además contra
+   el binario real (`opencode.exe`): el patrón `agent.tools` no aparece
+   en ningún lado — consistente con que el código fuente no lo consume.
+   Se probaron y descartaron, todos con evidencia real (0 GPU cuando fue
+   posible): `/experimental/tool` con y sin `Config.mcp` registrado (sin
+   diferencia, y de todos modos ese endpoint no refleja el catálogo real
+   de un request de chat), y una sesión real sin `Config.mcp` vía proxy
+   contra un directorio descartable (mismo catálogo restringido, sin
+   `edit`).
+
+   **La respuesta real estaba en el propio issue tracker de OpenCode,
+   no en su código**: [issue #17607](https://github.com/anomalyco/opencode/issues/17607)
+   ("Granular per-agent tool permissions") confirma, en palabras del
+   propio autor del issue, el estado real y actual del proyecto: el
+   `permission` por-agente **solo soporta categorías gruesas** (`allow`/
+   `ask`/`deny` para `read`/`edit`/`bash`/`mcp`) — controla si una tool
+   YA OFRECIDA se aprueba, no si se ofrece. El único mecanismo real para
+   controlar el catálogo (agregar/quitar tools individuales) es
+   exactamente el que encontramos empíricamente: **`body.tools` en el
+   mensaje de la API — descrito ahí mismo como "workaround que depende de
+   un campo `tools` deprecado que podría eliminarse"**. No hay
+   respuesta de mantenedores en el issue — sigue abierto, sin
+   implementar.
+
+   **Conclusión definitiva, no adivinada**: no existe hoy, en
+   `opencode-ai@1.18.18`, ningún mecanismo soportado y documentado para
+   agregar `edit` al catálogo de un agente headless respetando
+   `Config.permission` — es una limitación real y conocida del propio
+   OpenCode (el feature que la resolvería está pedido, no implementado),
+   no un error de configuración de este repo. `Config.agent.build.tools`
+   (`BUILD_AGENT_TOOLS` en `agent.ts`) queda confirmado como
+   efectivamente sin efecto en el catálogo con esta versión — la
+   intención documentada en su JSDoc (Fase 6.1) sigue siendo válida como
+   registro de qué se INTENTÓ, no como algo que hoy decida nada.
+
+   **Camino real hacia adelante, ninguno autorizado en este incremento**:
+   (a) esperar a que OpenCode implemente #17607 y reevaluar quedaría
+   desbloqueado sin cambios de nuestro lado — la `PolicyRule` ya está
+   lista (Fase 6.3); (b) comentar/reaccionar en el issue real para
+   señalar el hallazgo de seguridad de `body.tools` (acción visible
+   hacia afuera del repo — no se hizo sin pedir permiso explícito); (c)
+   si hiciera falta antes de que OpenCode lo resuelva, construir un
+   mecanismo de permisos propio que NO dependa del catálogo de OpenCode
+   — por ejemplo, interceptar tool calls a nivel de nuestro propio
+   `IPolicyEngine` antes de que lleguen a `session.prompt()`, lo cual
+   exigiría no delegar la ejecución completa a OpenCode para esta
+   categoría de tools — cambio de arquitectura significativo, contrario
+   al espíritu de ADR 0002 (no reinventar lo que el motor ya resuelve)
+   salvo que se confirme que no hay alternativa. Ninguna de las tres se
+   implementa en este incremento.
 
 9. EVOLUTIVO, sin evidencia todavía — Fase 8 (Personal Engineering
    Profile), Fase 9 (Continuous Learning), MemoryEmbedding
