@@ -118,8 +118,8 @@ Análisis de código vía ts-morph (sintáctico, sin type-checker): `CodeSymbol`
 | 3 | Project Intelligence | CERRADA |
 | 4 | Code Intelligence | CERRADA |
 | 5 | Agent Core Real (LLM connected) | CERRADA (sub-fases 5.5b–5.14) |
-| 6 | Developer Tools | En progreso — Fase 6.1-6.3 cerradas (edit habilitado, AllowScopedMutationRule, MCP Code Intelligence) |
-| 7 | Autonomous Workflows / MCP | NO INICIADA |
+| 6 | Developer Tools | CERRADA — Fase 6.1-6.3 (edit habilitado, AllowScopedMutationRule, MCP Code Intelligence) |
+| 7 | Autonomous Workflows / MCP | NO INICIADA — precondiciones cumplidas (Fase 5+6 cerradas) |
 
 ## Gaps conocidos (deliberados — no los "arregles" en silencio)
 
