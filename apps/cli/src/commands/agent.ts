@@ -18,7 +18,12 @@ import {
   loadConfig,
   OllamaEmbeddingProvider,
 } from "@guerrero-dev/infrastructure";
-import { CODE_INTELLIGENCE_REPO_ROOT_ENV, CODE_INTELLIGENCE_TOOL_NAMES } from "@guerrero-dev/mcp";
+import {
+  CODE_INTELLIGENCE_REPO_ROOT_ENV,
+  CODE_INTELLIGENCE_TOOL_NAMES,
+  GIT_REPO_ROOT_ENV,
+  GIT_TOOL_NAMES,
+} from "@guerrero-dev/mcp";
 import { createOpencodeClient, createOpencodeServer } from "@opencode-ai/sdk";
 import { createCliContext } from "../context.js";
 
@@ -69,6 +74,30 @@ const CODE_INTELLIGENCE_PREFIXED_TOOL_NAMES = CODE_INTELLIGENCE_TOOL_NAMES.map(
 );
 
 /**
+ * Ruta real al servidor MCP de Git, compilado por `@guerrero-dev/mcp`
+ * (subpath `./git-server`) — mismo mecanismo exacto que
+ * `CODE_INTELLIGENCE_MCP_SERVER_PATH`, agregado junto a Code Intelligence
+ * para cerrar el gap anotado en `infrastructure/git/index.ts` ("el resto
+ * de operaciones de git... se agregan cuando haya un caso de uso
+ * concreto"): el agente no tenía ninguna forma de observar `git status`/
+ * `git diff`/`git log` reales del proyecto.
+ */
+const GIT_MCP_SERVER_PATH = require.resolve("@guerrero-dev/mcp/git-server");
+
+/** Id real del servidor MCP de Git en `Config.mcp` — mismo naming que `CODE_INTELLIGENCE_MCP_SERVER_ID`. */
+const GIT_MCP_SERVER_ID = "git";
+
+/**
+ * Nombres reales de tool que OpenCode le asigna a cada tool de
+ * `GitMcpServer` cuando lo registra desde `Config.mcp` — mismo mecanismo
+ * verificado real para Code Intelligence en 6n (`CODE_INTELLIGENCE_PREFIXED_TOOL_NAMES`),
+ * no re-verificado de forma independiente para este servidor: es el mismo
+ * `Config.mcp[id]` (`McpLocalConfig`), sin ninguna diferencia estructural
+ * que justifique dudar de que el naming `{id}_{toolName}` se repita igual.
+ */
+const GIT_PREFIXED_TOOL_NAMES = GIT_TOOL_NAMES.map((toolName) => `${GIT_MCP_SERVER_ID}_${toolName}`);
+
+/**
  * `Config.permission` real (Fase 5.9b + 6n): fuerza `"ask"` para las
  * categorías reales de tool que el agente `build` puede intentar
  * (`edit`/`bash`/`webfetch`, 5.9b) más `read` y las cuatro de Code
@@ -80,6 +109,11 @@ const CODE_INTELLIGENCE_PREFIXED_TOOL_NAMES = CODE_INTELLIGENCE_TOOL_NAMES.map(
  * ya documenta que ese permiso sí se pide sin forzarlo acá (a diferencia
  * de `webfetch`), así que no hay evidencia de que necesite el mismo
  * tratamiento — no se agrega sin esa evidencia.
+ *
+ * `GIT_PREFIXED_TOOL_NAMES` (`git_status`/`git_diff`/`git_log`) se agrega
+ * acá por el mismo motivo exacto que Code Intelligence en 6n: sin una
+ * entrada explícita, OpenCode auto-aprobaría estos tres tools por su
+ * propio default interno y `IPolicyEngine` nunca los vería.
  */
 const PERMISSION: Record<string, "ask" | "allow" | "deny"> = {
   edit: "ask",
@@ -87,6 +121,7 @@ const PERMISSION: Record<string, "ask" | "allow" | "deny"> = {
   webfetch: "ask",
   read: "ask",
   ...Object.fromEntries(CODE_INTELLIGENCE_PREFIXED_TOOL_NAMES.map((toolName) => [toolName, "ask"] as const)),
+  ...Object.fromEntries(GIT_PREFIXED_TOOL_NAMES.map((toolName) => [toolName, "ask"] as const)),
 };
 
 /**
@@ -394,6 +429,20 @@ const MAX_AGENT_STEPS = 6;
  * `BUILD_AGENT_PERMISSION` — este párrafo describe el momento en que se
  * registró la regla (todavía con la tool inalcanzable); el estado actual
  * vive en el JSDoc de Fase 6.1, no en este.
+ *
+ * `GitMcpServer` (`@guerrero-dev/mcp`): segundo servidor MCP real,
+ * registrado con el mismo mecanismo exacto que Code Intelligence
+ * (`Config.mcp[GIT_MCP_SERVER_ID]`, `permission` forzado a `"ask"` para
+ * sus tres tools, `AllowScopedMutationRule` ampliada con
+ * `GIT_PREFIXED_TOOL_NAMES` como lectura sin efectos secundarios). Cierra
+ * el gap documentado desde antes en `infrastructure/git/index.ts`: el
+ * agente no tenía ninguna forma de observar `git status`/`git diff`/
+ * `git log` reales del proyecto. Implementado y probado (unitarios +
+ * protocolo MCP real vía `InMemoryTransport`); pendiente la misma
+ * verificación end-to-end contra el binario `opencode` real con Ollama
+ * que ya se hizo para Code Intelligence en 5.4c (sin Ollama alcanzable en
+ * el entorno donde se escribió este código) — no se afirma acá lo que no
+ * se pudo comprobar.
  */
 export function registerAgentCommands(program: Command): void {
   const agent = program.command("agent").description("Ejecuta al agente de Guerrero Dev");
@@ -433,7 +482,9 @@ export function registerAgentCommands(program: Command): void {
         );
         const contextBuilder = new ContextBuilder(projectIntelligenceProvider, memoryRetriever);
         const policyEngine = new PolicyEvaluator();
-        policyEngine.addRule(new AllowScopedMutationRule(CODE_INTELLIGENCE_PREFIXED_TOOL_NAMES));
+        policyEngine.addRule(
+          new AllowScopedMutationRule([...CODE_INTELLIGENCE_PREFIXED_TOOL_NAMES, ...GIT_PREFIXED_TOOL_NAMES]),
+        );
 
         const OLLAMA_PROVIDER_ID = "ollama";
         server = await createOpencodeServer({
@@ -451,6 +502,11 @@ export function registerAgentCommands(program: Command): void {
                 type: "local",
                 command: [process.execPath, CODE_INTELLIGENCE_MCP_SERVER_PATH],
                 environment: { [CODE_INTELLIGENCE_REPO_ROOT_ENV]: project.path },
+              },
+              [GIT_MCP_SERVER_ID]: {
+                type: "local",
+                command: [process.execPath, GIT_MCP_SERVER_PATH],
+                environment: { [GIT_REPO_ROOT_ENV]: project.path },
               },
             },
             // `Config["permission"]` de `@opencode-ai/sdk` solo declara
