@@ -1145,6 +1145,38 @@ entrada propia fue 6b. Ver también el resumen de estado real en §3.
    no se comitearon — candidatos a `scripts/` en una sesión futura si se
    reutilizan de nuevo, no antes.
 
+8d. DESCARTADOS (verificado, no supuesto) — dos candidatos del "siguiente
+   paso" de 8c, investigados en la misma sesión de cierre:
+
+   - **`Config.experimental.primary_tools`**: confirmado contra el string
+     literal real del binario (`opencode.exe`) que su efecto es
+     `.map((Y)=>({permission:Y,pattern:"*",action:"deny"}))` — inyecta
+     una regla de **deny** para **subagentes** (`agent: c.name` en el
+     contexto real del match, construcción de sesión de subagente vía
+     `task`). Es un mecanismo restrictivo para acotar qué tools puede
+     usar un subagente respecto del agente primario, no un mecanismo
+     aditivo para que el agente `build` (primario) gane tools nuevas.
+     Sin relación con el problema real.
+   - **`agent: "build"` explícito en `body` de `session.prompt()`**
+     (sin `body.tools`): probado real vía proxy contra un directorio
+     descartable (no el repo — lección de 8c aplicada) — el array
+     `tools` real siguió siendo exactamente el mismo catálogo
+     restringido (`code-intelligence_*, glob, grep, question, read,
+     skill, task, todowrite`, sin `edit`). El agente ya se resolvía
+     como `"build"` por default (confirmado en `opencode.db`, campo
+     `agent` de los mensajes reales) — pasarlo explícito no cambia nada.
+
+   Con esto, la hipótesis que queda en pie (sin probar todavía, señalada
+   en 8c) es que el catálogo del agente `build` en modo servidor headless
+   simplemente no incluye `edit`/`bash`/`write`/`webfetch` por diseño de
+   OpenCode — y el único mecanismo que los agrega (`body.tools`) es
+   además el que bypassea `Config.permission`. No hay más candidatos de
+   config sin probar identificados en esta sesión; el siguiente paso real
+   requeriría inspeccionar el código fuente de OpenCode (si está
+   disponible, no solo el binario compilado) o preguntar río arriba
+   (issue/discusión del proyecto `opencode-ai`) — fuera de alcance de una
+   sesión de diagnóstico contra un binario de terceros.
+
 9. EVOLUTIVO, sin evidencia todavía — Fase 8 (Personal Engineering
    Profile), Fase 9 (Continuous Learning), MemoryEmbedding
    autogenerado en promoción (gap operacional ya documentado en cierre
