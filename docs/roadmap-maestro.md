@@ -1032,6 +1032,119 @@ entrada propia fue 6b. Ver también el resumen de estado real en §3.
    limpios. Sin verificación end-to-end — no aplica todavía, nada de esto
    es alcanzable en runtime hasta 6.1 + 6.4.
 
+8c. CERRADO (diagnóstico) / NO ALCANZABLE (hallazgo de seguridad real) — Fase
+   6.1: causa raíz real de por qué `guerrero agent run` nunca disparó un
+   `permission.asked` de tipo `edit`, en ~15 corridas reales contra
+   `qwen2.5:7b-instruct-q4_K_M` (instrucciones explícitas, guiadas paso a
+   paso, con TODAS las demás tools apagadas para forzar `edit` como única
+   salida). No era el modelo — verificado con evidencia directa, sin
+   asumir, en tres capas:
+
+   **Capa 1 — evidencia estática, sin GPU** (binario real
+   `node_modules/opencode-ai/bin/opencode.exe`, `opencode-ai@1.18.18`, y
+   `~/.local/share/opencode/opencode.db`/`opencode.log`, ambos solo
+   lectura): confirmado que `metadata.filepath` (minúscula, path
+   absoluto) es la clave real de `permission.asked.properties.metadata`
+   para `"edit"` — string literal `metadata:{filepath:u,diff:m}` en el
+   binario, corroborado por una tool call real persistida
+   (`input:{oldString,filePath:"/path/to/package.json",newString}` —
+   nota: ese `filePath` de ejemplo es en sí mismo un caso de alucinación
+   de ruta tipo 5.9c/6p, capturado sin querer). También confirmado que
+   `write`/`apply_patch` piden permiso bajo la MISMA categoría `"edit"` —
+   `apply_patch` manda `metadata.filepath` como lista unida por coma más
+   `metadata.files`. `AllowScopedMutationRule` (6.3) ya se actualizó con
+   esta evidencia: `EDIT_TARGET_PATH_METADATA_KEY = "filepath"` (ya no
+   centinela) y una guarda explícita contra el caso `apply_patch`.
+
+   Análisis de los mensajes reales en `opencode.db` (tabla `message`/
+   `part`, `node:sqlite` de solo lectura) confirmó además el síntoma
+   exacto de las corridas fallidas: mensajes con `finish:"stop"`, 27-31
+   tokens de output, y **cero `part`s** (ni texto ni tool) — el modelo
+   generaba algo que no se materializaba en nada visible.
+
+   **Capa 2 — catálogo real sin invocar al modelo** (`GET
+   /experimental/tool` del SDK, `client.tool.list()`, endpoint real no
+   usado hasta ahora en el repo — `types.gen.d.ts:1727-1736`): contra la
+   config real de `agent.ts` (`provider`+`permission`+`agent.build.tools`
+   con `edit:true`), el catálogo devuelto por este endpoint SÍ incluye
+   `edit` — pero se confirmó después que este endpoint no respeta el
+   filtrado por agente/sesión (no toma parámetro `agent`), así que no es
+   representativo del array `tools` real de una request de chat concreta.
+   Sirvió para descartar la hipótesis de instancia de `opencode`
+   envenenada por directorio para el catálogo base (idéntico entre
+   `C:\Dev\agente\guerrero-dev` y un directorio temporal nuevo — 12 tools
+   en ambos).
+
+   **Capa 3 — la real: proxy HTTP interceptando `OLLAMA_BASE_URL`**
+   (reconstruido desde cero, técnica de 5.14/6o, ningún script quedó del
+   repo — ver hallazgo de housekeeping más abajo), en corridas reales de
+   `guerrero agent run` con `qwen3.5:2b` (el modelo con tool-calling más
+   confiable de los tres disponibles, `qwen2.5:7b-instruct-q4_K_M` y
+   `qwen3:4b` completan la lista) contra el directorio real y uno
+   limpio: el array `tools` real de `POST /v1/chat/completions` **nunca
+   incluyó `edit`**, ni con `BUILD_AGENT_TOOLS.edit:true` en
+   `Config.agent.build.tools`, ni agregando el mismo mapa también a
+   `Config.tools` (raíz) — en los tres casos el array real fue
+   exactamente `code-intelligence_*, glob, grep, question, read, skill,
+   task, todowrite`, sin `edit`/`bash`/`write`/`webfetch`. Confirma,
+   además, el mecanismo exacto del síntoma de la Capa 1: en una respuesta
+   real capturada, el modelo intentó `tool_calls:[{function:{name:
+   "write",...}}]` — una tool que tampoco estaba en el array ofrecido —
+   y esa llamada se perdió sin dejar rastro (ni texto, ni error, ni
+   evento). El modelo no es el problema: intenta usar herramientas
+   razonables para la tarea, pero el wiring nunca se las ofrece, y
+   OpenCode descarta en silencio cualquier tool call a algo no declarado.
+
+   **Hallazgo de seguridad real, más importante que el original**:
+   `SessionPromptData.body.tools` (campo real por-request del SDK,
+   `types.gen.d.ts:2254-2256`, nunca usado por
+   `OpenCodeExecutionEngine.execute()`) SÍ logra que `edit` aparezca en
+   el array real — probado, confirmado en el proxy. Pero usarlo abre un
+   agujero real: con `body.tools:{edit:true,...}` agregado a
+   `session.prompt()`, un `edit` real se ejecutó de punta a punta
+   (archivo real modificado, confirmado con `git diff` en el checkout
+   principal y revertido de inmediato) en ~50ms, con el `part` pasando
+   `pending → running → completed` sin ninguna pausa — verificado en
+   `opencode.db` (tabla `event`) que **jamás se emitió un
+   `permission.asked`/`asking`** para ese `edit`, pese a
+   `PERMISSION.edit: "ask"` estar configurado. `IPolicyEngine` nunca lo
+   vio — exactamente el agujero que 5.5b/5.9b/6g cerraron, reabierto por
+   una vía distinta. La tabla `permission` de `opencode.db` está vacía
+   (no es una aprobación "recordada" persistida) — la causa exacta por la
+   que `body.tools` bypassea el subsistema de permisos no se investigó
+   más a fondo (binario compilado, sin sourcemaps) — se documenta como
+   hallazgo real y bloqueante, no se adivina la causa interna.
+
+   **Decisión, verificada, no en silencio**: `body.tools` NO se usa en
+   `OpenCodeExecutionEngine.execute()` — revertido explícitamente después
+   de confirmar el bypass. `BUILD_AGENT_TOOLS.edit: true` queda como
+   intención documentada (Fase 6.1 en el JSDoc de `agent.ts`), sabiendo
+   que hoy es inerte por esta vía — no hay mecanismo confirmado que
+   agregue `edit` al catálogo real sin pasar por `body.tools`. El logger
+   temporal `[Fase 6.1]` de `OpenCodeExecutionEngine.ts` se removió — ya
+   cumplió su propósito (confirmar la forma de `metadata`, capa 1).
+
+   **Siguiente paso real, no autorizado en este incremento**: encontrar
+   el mecanismo real (si existe) que agregue `edit` al catálogo de
+   `Config.agent.build.tools` respetando `Config.permission` — candidatos
+   sin probar: `Config.experimental.primary_tools` (campo real del SDK,
+   "tools that should only be available to primary agents",
+   `types.gen.d.ts:1210-1212`, sin explorar), o que el catálogo de la
+   sesión "build" en modo servidor headless (sin TUI) simplemente no
+   incluya `edit`/`bash`/`write`/`webfetch` por diseño de OpenCode y haga
+   falta otro mecanismo todavía no identificado. Requiere su propia
+   auditoría — no se adivina ni se prueba a ciegas con más GPU real sin
+   antes entender por qué `body.tools` bypassea permisos.
+
+   **Housekeeping real, verificado**: ninguna técnica de diagnóstico
+   previa (proxy HTTP de 5.14/6o/5.4c, test directo contra `POST
+   /api/chat` de Fase 5.9) quedó como script en el repo — ambas se
+   reconstruyeron desde cero para esta auditoría (`grep`/`git log`
+   exhaustivo, cero resultados). Los scripts de esta sesión (proxy,
+   inventario de tools, forense sobre `opencode.db`) fueron descartables,
+   no se comitearon — candidatos a `scripts/` en una sesión futura si se
+   reutilizan de nuevo, no antes.
+
 9. EVOLUTIVO, sin evidencia todavía — Fase 8 (Personal Engineering
    Profile), Fase 9 (Continuous Learning), MemoryEmbedding
    autogenerado en promoción (gap operacional ya documentado en cierre

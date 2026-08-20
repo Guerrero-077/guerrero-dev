@@ -16,6 +16,16 @@ ni ningún cierre de Fase 5 unificada.
 (Developer Tools)"), con aprobación para diseñar el alcance real antes
 de escribir código, en vez de saltar directo a una `PolicyRule` sin
 evidencia suficiente para acotarla con seguridad.
+**Actualización real (Fase 6.3/6.1, `docs/roadmap-maestro.md` ítems 8b/8c):**
+`AllowScopedMutationRule` ya está implementada con la evidencia real de
+§8 (`EDIT_TARGET_PATH_METADATA_KEY = "filepath"`, confirmado contra el
+binario). El bloqueo real de por qué `edit` nunca se disparaba resultó
+NO ser el modelo — es que `edit` nunca llega al catálogo real de tools
+que se le manda, y el único mecanismo que lo agrega
+(`SessionPromptData.body.tools`) bypassea `Config.permission` por
+completo (verificado real: un archivo se editó sin ningún
+`permission.asked`). Ver 8c para el detalle completo — este documento
+no se reescribe, queda como registro del diseño original.
 
 ---
 

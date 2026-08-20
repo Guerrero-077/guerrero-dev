@@ -166,5 +166,50 @@ describe("AllowScopedMutationRule", () => {
 
       expect(decision.allowed).toBe(true);
     });
+
+    it("deniega una ruta sensible con path absoluto real de Windows", async () => {
+      const windowsContext: PolicyContext = {
+        projectRootPath: "C:\\Dev\\agente\\guerrero-dev",
+        userId: "santiago",
+      };
+      const decision = await new AllowScopedMutationRule().evaluate(
+        editRequest("C:\\Dev\\agente\\guerrero-dev\\.env"),
+        windowsContext,
+      );
+
+      expect(decision.allowed).toBe(false);
+      expect(decision.reason).toContain("deny-list");
+    });
+  });
+
+  describe("guarda contra apply_patch (metadata compartida con la categoría edit)", () => {
+    it('deniega si request.input trae "files" (patch multi-archivo)', async () => {
+      const decision = await new AllowScopedMutationRule().evaluate(
+        makeRequest("edit", {
+          [EDIT_TARGET_PATH_METADATA_KEY]: "src/a.ts, src/b.ts",
+          files: ["src/a.ts", "src/b.ts"],
+        }),
+        context,
+      );
+
+      expect(decision.allowed).toBe(false);
+      expect(decision.reason).toContain("lista de archivos");
+    });
+
+    it('deniega si el path objetivo contiene ", " aunque no venga "files"', async () => {
+      const decision = await new AllowScopedMutationRule().evaluate(
+        editRequest("src/a.ts, src/b.ts"),
+        context,
+      );
+
+      expect(decision.allowed).toBe(false);
+      expect(decision.reason).toContain("lista de archivos");
+    });
+
+    it('la guarda no da falsos positivos sobre un path legítimo sin ", "', async () => {
+      const decision = await new AllowScopedMutationRule().evaluate(editRequest("src/foo.ts"), context);
+
+      expect(decision.allowed).toBe(true);
+    });
   });
 });

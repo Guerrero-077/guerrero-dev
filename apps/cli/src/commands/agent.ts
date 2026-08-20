@@ -140,31 +140,44 @@ const EXECUTION_TIMEOUT_MS = 120_000;
  * poder invocar esas tools — y, sin la posibilidad de desviarse, leyó el
  * archivo y respondió en texto (`finish: "stop"`, no `"tool-calls"`).
  *
- * `DISABLED_TOOLS` apaga exactamente las tools de escritura/red/ejecución
- * (`bash`, `write`, `webfetch`, `websearch`, `apply_patch`) del agente
- * `build` — `read`/`glob`/`grep` (solo lectura) quedan habilitadas. Esto
- * es coherente con dónde está el proyecto hoy (Fase 5, roadmap
- * unificado — "Agent Core real, LLM conectado"; escritura de archivos
- * es Fase 6 — Developer Tools) — no es una limitación arbitraria, es el
- * alcance real de esta fase. `permission: {edit,bash,webfetch}: "ask"`
- * (Fase 5.9b) queda intacto como segunda capa: si en el futuro se
- * reactiva alguna de estas tools acá sin recordar tocar este archivo,
- * `IPolicyEngine` fail-closed las sigue denegando igual.
+ * `BUILD_AGENT_TOOLS` (nombre real: mapa de habilitación de
+ * `Config.agent.build.tools`, `Agent["tools"]: {[key: string]: boolean}` del SDK — no
+ * "todo deshabilitado", pese al nombre que tuvo hasta Fase 6.1) controla qué tools puede
+ * intentar el agente `build` — `read`/`glob`/`grep` (solo lectura) quedan habilitadas por
+ * default (no aparecen acá). `permission: {edit,bash,webfetch}: "ask"` (Fase 5.9b) queda
+ * intacto como segunda capa: si en el futuro se reactiva alguna tool acá sin recordar
+ * tocar este archivo, `IPolicyEngine` fail-closed las sigue denegando igual.
  *
- * **`edit: true` (Fase 6.1, validación real)**: reactivada a propósito
- * para que el modelo pueda intentar una edición real y dispare un
- * `permission.asked` real de tipo `"edit"` — necesario para capturar la
- * forma exacta de `properties.metadata`
- * (`docs/fase-6-developer-tools-map.md` §4), evidencia que no se puede
- * conseguir sin una máquina con Ollama + `opencode serve` reales.
- * Seguro por construcción: `AllowScopedMutationRule.evaluateEdit()`
- * (Fase 6.3) busca `request.input[EDIT_TARGET_PATH_METADATA_KEY]`, un
- * centinela que no coincide con ninguna clave real todavía — cualquier
- * intento real de `edit` se deniega por fail-closed, sin excepción,
- * hasta que alguien reemplace ese valor a propósito con el nombre
- * confirmado acá. Ver el log temporal de
- * `OpenCodeExecutionEngine.handlePermissionEvents()` para capturar el
- * evento real completo.
+ * **`write`/`apply_patch` comparten categoría de permiso con `edit` (hallazgo de Fase 6.1,
+ * confirmado contra el binario real — ver JSDoc de `EDIT_TARGET_PATH_METADATA_KEY` en
+ * `AllowScopedMutationRule.ts`)**: `apply_patch` (multi-archivo) manda
+ * `metadata.filepath` como una lista unida por coma en vez de un único path. Mantenerlas en
+ * `false` acá no es cosmético — `AllowScopedMutationRule.evaluateEdit()` ya tiene una guarda
+ * explícita contra ese caso, pero esta es la primera línea de defensa: sin evidencia real de
+ * que hagan falta, siguen apagadas.
+ *
+ * **`edit: true` (Fase 6.1, `7c81f28`) — diagnóstico cerrado, NO reactivar sin leer esto
+ * completo**: la intención original era que el modelo pudiera intentar una edición real.
+ * `EDIT_TARGET_PATH_METADATA_KEY` (`"filepath"`, `AllowScopedMutationRule.ts`) ya está
+ * confirmado contra el binario real y una tool call real persistida — ese centinela dejó
+ * de ser el problema. El problema real, encontrado con evidencia directa (proxy HTTP real
+ * interceptando `OLLAMA_BASE_URL`, `docs/roadmap-maestro.md`): **`edit: true` acá adentro
+ * NO logra que `edit` llegue al array `tools` real que se le manda al modelo** — verificado
+ * con `qwen3.5:2b` y `qwen2.5:7b-instruct-q4_K_M`, contra el directorio real y uno limpio,
+ * con y sin `tools` también a nivel raíz de `Config`: en los tres casos el array real
+ * (capturado del `POST /v1/chat/completions` real) nunca incluyó `edit`, solo
+ * `code-intelligence_*, glob, grep, question, read, skill, task, todowrite`. El único
+ * mecanismo que sí lo agrega es `SessionPromptData.body.tools` (por-request, campo real del
+ * SDK, `types.gen.d.ts:2254-2256`) — **y ese mecanismo bypassea `Config.permission`
+ * enteramente**: verificado real, un `edit` real se ejecutó (archivo real modificado) en
+ * ~50ms sin ningún evento `permission.asked`/`asking` de por medio — `IPolicyEngine` nunca
+ * lo vio. Usarlo sería reabrir exactamente el hueco que 5.5b/5.9b/6g cerraron. No se usa
+ * acá por esa razón, no por descuido. `edit: true` en esta constante queda como intención
+ * documentada, sabiendo que hoy es inerte por esta vía — habilitar `edit` de verdad
+ * necesita encontrar un mecanismo que agregue la tool al catálogo SIN pasar por
+ * `body.tools`, todavía sin identificar. El log temporal de
+ * `OpenCodeExecutionEngine.handlePermissionEvents()` se remueve junto con este cierre —
+ * ya cumplió su propósito.
  *
  * **Corrección (Fase 6n) al párrafo de arriba**: "`read` nunca pasa por
  * `IPolicyEngine`" era cierto solo mientras `Config.permission` no
@@ -175,9 +188,9 @@ const EXECUTION_TIMEOUT_MS = 120_000;
  * `CODE_INTELLIGENCE_PREFIXED_TOOL_NAMES` más abajo para la verificación
  * real.
  */
-const DISABLED_TOOLS = {
+const BUILD_AGENT_TOOLS = {
   bash: false,
-  edit: true, // reactivada para validación real de Fase 6.1 — ver JSDoc arriba
+  edit: true, // intención documentada, hoy inerte vía este mapa — ver JSDoc arriba (Fase 6.1)
   write: false,
   webfetch: false,
   websearch: false,
@@ -372,18 +385,14 @@ const MAX_AGENT_STEPS = 6;
  * problema de composición AND + early-exit de `PolicyEvaluator` que ya
  * documentaba `AllowReadRule`; ver JSDoc de la nueva clase). La nueva
  * clase absorbe el mismo contrato de lectura (`read` + Code Intelligence
- * vía `additionalAllowedTools`, idéntico) y agrega una segunda categoría
- * real, `edit`, con su propia validación (contención en
- * `projectRootPath` + deny-list de rutas sensibles del propio repo). El
- * campo de `request.input` que trae el path objetivo de una edición
- * sigue sin confirmar contra el binario real (`EDIT_TARGET_PATH_METADATA_KEY`,
- * ver JSDoc de la clase) — mientras eso no se capture en una máquina con
- * Ollama + `opencode serve` reales, `evaluateEdit()` deniega toda
- * edición por fail-closed, sin excepción. Registrar esta clase acá no
- * cambia ningún comportamiento observable todavía: `DISABLED_TOOLS.edit`
- * sigue en `false`, así que el agente `build` no puede ni intentar
- * invocar `edit` — mismo patrón "CERRADO (código) / NO ALCANZABLE EN
- * RUNTIME todavía" que `AllowReadRule` tuvo entre 5.13 y 6n.
+ * vía `additionalReadOnlyTools`, idéntico salvo el nombre del parámetro)
+ * y agrega una segunda categoría real, `edit`, con su propia validación
+ * (contención en `projectRootPath` + deny-list de rutas sensibles del
+ * propio repo). **Estado real, corregido (ver Fase 6.1 arriba, no
+ * repetido acá)**: `edit` ya está reactivada en `BUILD_AGENT_TOOLS`
+ * desde 6.1 — este párrafo describe el momento en que se registró la
+ * regla (todavía con la tool apagada); el estado actual de "alcanzable
+ * o no en runtime" vive en el JSDoc de Fase 6.1, no en este.
  */
 export function registerAgentCommands(program: Command): void {
   const agent = program.command("agent").description("Ejecuta al agente de Guerrero Dev");
@@ -454,7 +463,7 @@ export function registerAgentCommands(program: Command): void {
             // desactualizado del SDK.
             permission: PERMISSION,
             agent: {
-              build: { tools: DISABLED_TOOLS, maxSteps: MAX_AGENT_STEPS },
+              build: { tools: BUILD_AGENT_TOOLS, maxSteps: MAX_AGENT_STEPS },
               general: { maxSteps: MAX_AGENT_STEPS },
             },
           },

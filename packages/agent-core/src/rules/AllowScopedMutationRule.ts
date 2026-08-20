@@ -6,20 +6,23 @@ const READ_ONLY_TOOL_NAME = "read";
 
 /**
  * Clave real del campo de `ToolRequest.input` (== `permission.asked.properties.metadata`
- * de OpenCode, ver `OpenCodeExecutionEngine.handlePermissionEvents()`) que trae la ruta
- * del archivo objetivo de una edición — **sin confirmar, a propósito**
- * (`docs/fase-6-developer-tools-map.md` §4/§8.3). Hay una hipótesis circunstancial ("file" o
- * "filePath", por analogía con el evento no relacionado `"file.edited"` del módulo `v2` del
- * SDK, `properties: { file: string }`) pero cero observación directa de un `permission.asked`
- * real de tipo `"edit"` — adivinar acá sería exactamente lo que este incremento decidió no
- * hacer. El valor centinela de abajo nunca va a coincidir con ninguna clave real, así que
- * `evaluateEdit()` deniega todo por fail-closed (`typeof targetPath !== "string"`) hasta que
- * alguien lo reemplace deliberadamente — no hay forma de que esta regla apruebe una edición
- * real por accidente mientras este valor siga sin tocar. Reemplazarlo por el nombre
- * confirmado en 6.1 (captura real contra `opencode serve` + Ollama) es el único cambio de
- * código que 6.1 debería requerir.
+ * de OpenCode, ver `OpenCodeExecutionEngine.handlePermissionEvents()`) que trae la ruta del
+ * archivo objetivo de una edición — **confirmada (Fase 6.1), no adivinada**: el string
+ * literal `metadata:{filepath:...}` (minúscula, sin camelCase) aparece en el propio código
+ * de `node_modules/opencode-ai/bin/opencode.exe` (v1.18.18, el mismo binario que
+ * `createOpencodeServer()` levanta) en los tres sitios que emiten un permiso de categoría
+ * `"edit"` (tools `edit`, `write`, `apply_patch`) — corroborado además por una tool call
+ * real persistida en `~/.local/share/opencode/opencode.db` con
+ * `input: {oldString, filePath: "/ruta/real/package.json", newString}`. El valor real que
+ * llega a `metadata.filepath` es siempre absoluto (`opencode` lo resuelve contra su propio
+ * `directory` antes de pedir el permiso), consistente con `resolve()` más abajo.
+ *
+ * `filePath` (camelCase) es el nombre del PARÁMETRO que el modelo completa al invocar la
+ * tool — no el nombre de la clave de `metadata`. Por eso el test que deniega `filePath` en
+ * `request.input` (casing distinto) documenta una diferencia real, no un capricho de
+ * mayúsculas.
  */
-export const EDIT_TARGET_PATH_METADATA_KEY = "UNCONFIRMED_PENDING_FASE_6_1_EVIDENCE";
+export const EDIT_TARGET_PATH_METADATA_KEY = "filepath";
 
 /**
  * Deny-list real para `guerrero-dev` (`docs/fase-6-developer-tools-map.md` §8.1) — no
@@ -47,13 +50,14 @@ const SENSITIVE_RELATIVE_PATHS: readonly string[] = [
 
 /**
  * Segunda `PolicyRule` real del sistema (Fase 6.3, `docs/fase-6-developer-tools-map.md`
- * §8), sucesora de `AllowReadRule` (5.13/6n) — la reemplaza, no convive con ella:
- * `PolicyEvaluator.evaluate()` agrega con AND + early-exit-on-deny (ver `PolicyEvaluator.ts`),
- * así que dos allow-lists parciales registradas juntas se anulan mutuamente (misma
- * limitación de composición ya documentada en `AllowReadRule`). Por eso esta clase absorbe
- * TODO lo que `AllowReadRule` ya aprobaba (`"read"` + tools de Code Intelligence inyectadas
- * por constructor, idéntico contrato) y agrega una segunda categoría real: `"edit"`, con su
- * propia validación — no una allow-list ciega como la de lectura.
+ * §8), sucesora de `AllowReadRule` (5.13/6n, eliminada de este repo en 6.3 — ver
+ * `docs/roadmap-maestro.md` para el historial) — la reemplaza, no convive con ella:
+ * `PolicyEvaluator.evaluate()` agrega con AND + early-exit-on-deny (ver
+ * `PolicyEvaluator.ts:17-33`), así que dos allow-lists parciales registradas juntas se
+ * anulan mutuamente. Por eso esta clase absorbe TODO lo que `AllowReadRule` ya aprobaba
+ * (`"read"` + tools de Code Intelligence inyectadas por constructor, idéntico contrato) y
+ * agrega una segunda categoría real: `"edit"`, con su propia validación — no una allow-list
+ * ciega como la de lectura.
  *
  * **Por qué `"edit"` no puede ser una allow-list ciega como `"read"`**: `"read"` no muta el
  * workspace: aprobarla sin mirar `request.input` es seguro. `"edit"` sí muta — el caso real
@@ -61,22 +65,29 @@ const SENSITIVE_RELATIVE_PATHS: readonly string[] = [
  * corrupto, denegado solo porque `PolicyEvaluator` era fail-closed sin ninguna regla) es
  * evidencia directa de que aprobar `edit` sin condiciones es un riesgo real, no hipotético.
  * `evaluateEdit()` exige: (a) que `request.input` traiga un path bajo
- * `EDIT_TARGET_PATH_METADATA_KEY` (si no, deniega — fail-closed, cubre tanto el caso real de
- * que OpenCode no lo mande como el caso, hoy vigente, de que la clave no esté confirmada);
- * (b) que el path resuelto quede dentro de `context.projectRootPath` — segunda capa de
- * defensa en profundidad además de `external_directory` (que ya gatea esto a nivel de
- * motor, capa separada, mismo criterio que `EXECUTION_TIMEOUT_MS`, Fase 5.9c); (c) que no
- * esté en `SENSITIVE_RELATIVE_PATHS`.
+ * `EDIT_TARGET_PATH_METADATA_KEY` (si no, deniega — fail-closed); (b) que NO sea una lista de
+ * varios archivos (ver guarda de `apply_patch` más abajo); (c) que el path resuelto quede
+ * dentro de `context.projectRootPath` — segunda capa de defensa en profundidad además de
+ * `external_directory` (que ya gatea esto a nivel de motor, capa separada, mismo criterio
+ * que `EXECUTION_TIMEOUT_MS`, Fase 5.9c); (d) que no esté en `SENSITIVE_RELATIVE_PATHS`.
  *
- * **Estado real de alcanzabilidad en runtime, honesto y verificado, no asumido**: aunque
- * esta clase SÍ decide sobre `"edit"` en cuanto se registre en el composition root
- * (`PERMISSION.edit: "ask"` ya fuerza el evento real desde Fase 5.9b — confirmado en
- * `apps/cli/src/commands/agent.ts`), el agente `build` tiene la tool `edit` apagada vía
- * `DISABLED_TOOLS.edit: false` — el modelo no puede ni intentar invocarla todavía. Registrar
- * esta clase en el composition root es seguro (no cambia ningún comportamiento observable
- * mientras `DISABLED_TOOLS.edit` siga en `false`) y necesario para no perder la cobertura de
- * `"read"`/Code Intelligence que `AllowReadRule` ya daba. Reactivar `edit` de verdad
- * (`DISABLED_TOOLS.edit: true`) es Fase 6.4, posterior y separada — no parte de este cambio.
+ * **Riesgo real encontrado en Fase 6.1, cerrado acá**: el binario real (ver JSDoc de
+ * `EDIT_TARGET_PATH_METADATA_KEY`) muestra que `edit`, `write` y `apply_patch` piden permiso
+ * bajo la MISMA categoría `"edit"` — `apply_patch` (multi-archivo) manda
+ * `metadata.filepath` como una lista unida por coma (`"a.ts, b.ts"`) más un campo
+ * `metadata.files`. Sin guarda, un `filepath` así resolvería como un solo path "raro" pero
+ * técnicamente dentro del root, y esta regla aprobaría un patch multi-archivo sin haberlo
+ * decidido — `evaluateEdit()` deniega explícitamente cualquier `request.input.files` (array)
+ * o `filepath` con `", "`, aunque `write`/`apply_patch` sigan apagadas hoy en
+ * `apps/cli/src/commands/agent.ts` (`BUILD_AGENT_TOOLS`): esta regla no debe depender de esa
+ * otra capa para estar segura.
+ *
+ * **Estado real de alcanzabilidad en runtime**: esta clase decide sobre `"edit"` en cuanto
+ * se registra en el composition root (`PERMISSION.edit: "ask"` fuerza el evento real desde
+ * Fase 5.9b) — el estado actual de si la tool `edit` está habilitada para el modelo vive en
+ * `BUILD_AGENT_TOOLS` (`apps/cli/src/commands/agent.ts`), no acá; no se repite ese valor en
+ * este archivo para no desincronizarse de nuevo (ya pasó una vez, ver Fase 6.1 en
+ * `docs/roadmap-maestro.md`).
  */
 export class AllowScopedMutationRule implements PolicyRule {
   readonly name = "allow-scoped-mutation";
@@ -112,6 +123,17 @@ export class AllowScopedMutationRule implements PolicyRule {
       return deny(
         request,
         `No se pudo determinar el archivo objetivo de "edit" (campo "${EDIT_TARGET_PATH_METADATA_KEY}" ausente o inválido en request.input): denegado por defecto (fail-closed).`,
+      );
+    }
+
+    // `apply_patch` (multi-archivo) pide permiso bajo la misma categoría "edit" y manda
+    // metadata.filepath como una lista unida por coma más un metadata.files real — ver JSDoc
+    // de la clase. Sin esta guarda, un patch multi-archivo pasaría como si fuera un único
+    // path "raro" pero contenido en el proyecto.
+    if (Array.isArray(request.input["files"]) || targetPath.includes(", ")) {
+      return deny(
+        request,
+        `"${targetPath}" aparenta ser una lista de archivos (apply_patch), no un único path: denegado — esta regla solo evalúa ediciones de un archivo por vez.`,
       );
     }
 

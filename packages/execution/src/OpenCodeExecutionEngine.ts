@@ -376,18 +376,6 @@ export class OpenCodeExecutionEngine implements IExecutionEngine {
       const permission = asPermissionAsked(event);
       if (!permission || !sessionFamily.has(permission.properties.sessionID)) continue;
 
-      // TEMPORAL (Fase 6.1, docs/fase-6-developer-tools-map.md §4) — remover
-      // una vez capturada y documentada en roadmap-maestro.md la forma real
-      // de `permission.asked.properties` para "edit" contra un servidor real
-      // (Ollama + `opencode serve`, no disponible en el entorno donde se
-      // escribió `AllowScopedMutationRule`, Fase 6.3). Acotado a "edit" para
-      // no ensuciar el log con read/bash/webfetch, ya verificados en 6r.
-      if (permission.properties.permission === "edit") {
-        console.error(
-          `[Fase 6.1] permission.asked real para "edit":\n${JSON.stringify(permission.properties, null, 2)}`,
-        );
-      }
-
       const request: ToolRequest = {
         id: permission.properties.id,
         sessionId: permission.properties.sessionID,
