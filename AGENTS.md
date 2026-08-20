@@ -106,6 +106,7 @@ Análisis de código vía ts-morph (sintáctico, sin type-checker): `CodeSymbol`
 - **Migraciones**: archivos SQL numerados en `packages/infrastructure/src/database/migrations/`. Nunca edites una ya aplicada — agregá una nueva.
 - **Tests unitarios** junto al código como `*.test.ts`. **Integration/e2e** en `tests/` raíz, protegidos por `RUN_INTEGRATION_TESTS=true`.
 - **Errores**: clases de error puras en `shared`; `Result<T,E>` solo donde el fallo es esperado y modelable.
+- **Commits y ramas**: ver `CONTRIBUTING.md` para conventional commits, nombres de ramas, y flujo de merge.
 
 ## Estado de fases
 
