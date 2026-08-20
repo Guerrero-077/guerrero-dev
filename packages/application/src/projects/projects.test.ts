@@ -1,9 +1,11 @@
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Project } from "@guerrero-dev/domain";
 import type { IProjectRepository } from "../common/ports/IProjectRepository.js";
 import { AddProject } from "./AddProject.js";
 import { GetProject } from "./GetProject.js";
 import { ListProjects } from "./ListProjects.js";
+import { ResolveProjectFromCwd } from "./ResolveProjectFromCwd.js";
 
 /** Fake en memoria — los tests unitarios no tocan PostgreSQL. */
 class InMemoryProjectRepository implements IProjectRepository {
@@ -16,6 +18,10 @@ class InMemoryProjectRepository implements IProjectRepository {
 
   async findById(id: string): Promise<Project | null> {
     return this.projects.find((p) => p.id === id) ?? null;
+  }
+
+  async findByPath(path: string): Promise<Project | null> {
+    return this.projects.find((p) => p.path === path) ?? null;
   }
 
   async findAll(): Promise<Project[]> {
@@ -72,5 +78,51 @@ describe("ListProjects / GetProject", () => {
     const get = new GetProject(repository);
 
     await expect(get.execute("no-existe")).resolves.toBeNull();
+  });
+});
+
+describe("ResolveProjectFromCwd", () => {
+  it("resuelve el proyecto cuando startPath coincide exactamente con Project.path", async () => {
+    const repository = new InMemoryProjectRepository();
+    const root = join("/repos", "guerrero-dev");
+    await new AddProject(repository).execute({ name: "guerrero-dev", path: root });
+    const resolve = new ResolveProjectFromCwd(repository);
+
+    const found = await resolve.execute(root);
+
+    expect(found?.name).toBe("guerrero-dev");
+  });
+
+  it("recorre ancestros hasta encontrar el proyecto registrado", async () => {
+    const repository = new InMemoryProjectRepository();
+    const root = join("/repos", "guerrero-dev");
+    await new AddProject(repository).execute({ name: "guerrero-dev", path: root });
+    const resolve = new ResolveProjectFromCwd(repository);
+
+    const found = await resolve.execute(join(root, "packages", "agent-core", "src"));
+
+    expect(found?.name).toBe("guerrero-dev");
+  });
+
+  it("devuelve null si ningún ancestro está registrado", async () => {
+    const repository = new InMemoryProjectRepository();
+    const resolve = new ResolveProjectFromCwd(repository);
+
+    const found = await resolve.execute(join("/repos", "otro-proyecto", "src"));
+
+    expect(found).toBeNull();
+  });
+
+  it("no confunde un proyecto registrado en un directorio hermano", async () => {
+    const repository = new InMemoryProjectRepository();
+    await new AddProject(repository).execute({
+      name: "hermano",
+      path: join("/repos", "hermano"),
+    });
+    const resolve = new ResolveProjectFromCwd(repository);
+
+    const found = await resolve.execute(join("/repos", "guerrero-dev", "src"));
+
+    expect(found).toBeNull();
   });
 });

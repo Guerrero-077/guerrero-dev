@@ -11,5 +11,13 @@ export interface IProjectRepository {
 
   findById(id: string): Promise<Project | null>;
 
+  /**
+   * Match exacto contra `Project.path` (columna `UNIQUE`, migración 0001).
+   * Usado por `ResolveProjectFromCwd` para recorrer ancestros de un
+   * directorio — el recorrido vive en el caso de uso, este método solo
+   * resuelve un path exacto, mismo criterio simple que `findById`.
+   */
+  findByPath(path: string): Promise<Project | null>;
+
   findAll(): Promise<Project[]>;
 }

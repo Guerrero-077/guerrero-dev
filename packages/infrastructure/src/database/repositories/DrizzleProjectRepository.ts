@@ -43,6 +43,11 @@ export class DrizzleProjectRepository implements IProjectRepository {
     return row ? toProject(row) : null;
   }
 
+  async findByPath(path: string): Promise<Project | null> {
+    const [row] = await this.db.select().from(projects).where(eq(projects.path, path));
+    return row ? toProject(row) : null;
+  }
+
   async findAll(): Promise<Project[]> {
     const rows = await this.db.select().from(projects).orderBy(desc(projects.createdAt));
     return rows.map(toProject);

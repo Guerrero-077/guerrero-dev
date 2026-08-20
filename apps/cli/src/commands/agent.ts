@@ -399,17 +399,29 @@ export function registerAgentCommands(program: Command): void {
   const agent = program.command("agent").description("Ejecuta al agente de Guerrero Dev");
 
   agent
-    .command("run <projectId> <instruction>")
-    .description("Corre una instrucción real contra un proyecto registrado")
+    .command("run <instruction>")
+    .description(
+      "Corre una instrucción real contra el proyecto del directorio actual (o --project <id>)",
+    )
     .option("-m, --model <model>", "Modelo de Ollama a usar (default: OLLAMA_DEFAULT_MODEL)")
-    .action(async (projectId: string, instruction: string, options: { model?: string }) => {
+    .option(
+      "--project <projectId>",
+      "Id de proyecto explícito — sin esto, resuelve por el directorio actual (Fase 0)",
+    )
+    .action(async (instruction: string, options: { model?: string; project?: string }) => {
       const ctx = createCliContext();
       let server: Awaited<ReturnType<typeof createOpencodeServer>> | undefined;
 
       try {
-        const project = await ctx.getProject.execute(projectId);
+        const project = options.project
+          ? await ctx.getProject.execute(options.project)
+          : await ctx.resolveProjectFromCwd.execute(process.cwd());
         if (!project) {
-          console.error(`✗ No existe un proyecto con id ${projectId}. Usa \`guerrero project list\`.`);
+          console.error(
+            options.project
+              ? `✗ No existe un proyecto con id ${options.project}. Usa \`guerrero project list\`.`
+              : `✗ Ningún proyecto registrado contiene el directorio actual (${process.cwd()}). Usa \`guerrero project add <name> <path>\` o pasá --project <id>.`,
+          );
           process.exitCode = 1;
           return;
         }

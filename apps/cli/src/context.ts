@@ -5,7 +5,12 @@ import {
   loadConfig,
   type PgPool,
 } from "@guerrero-dev/infrastructure";
-import { AddProject, GetProject, ListProjects } from "@guerrero-dev/application";
+import {
+  AddProject,
+  GetProject,
+  ListProjects,
+  ResolveProjectFromCwd,
+} from "@guerrero-dev/application";
 
 /**
  * El CLI habla con Application, no con PostgreSQL directamente (Fase
@@ -18,6 +23,8 @@ export interface CliContext {
   addProject: AddProject;
   getProject: GetProject;
   listProjects: ListProjects;
+  /** Fase 0 del plan de "agente real": resuelve el proyecto por directorio actual, sin pedir un id. */
+  resolveProjectFromCwd: ResolveProjectFromCwd;
   dispose(): Promise<void>;
 }
 
@@ -32,6 +39,7 @@ export function createCliContext(): CliContext {
     addProject: new AddProject(repository),
     getProject: new GetProject(repository),
     listProjects: new ListProjects(repository),
+    resolveProjectFromCwd: new ResolveProjectFromCwd(repository),
     async dispose() {
       await pool.end();
     },
