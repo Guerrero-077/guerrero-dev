@@ -1241,6 +1241,70 @@ entrada propia fue 6b. Ver también el resumen de estado real en §3.
    salvo que se confirme que no hay alternativa. Ninguna de las tres se
    implementa en este incremento.
 
+8f. **SUPERA A 8e — se encontró el mecanismo real, existe hoy.** El
+   camino (a) de 8e ("esperar a OpenCode") resultó innecesario: mientras
+   se investigaba el código fuente de `anomalyco/opencode` para 8e, se
+   encontró en el propio issue tracker (no en el código) que
+   `Config.agent.*.tools` (el campo booleano usado desde Fase 6.1, este
+   archivo, `BUILD_AGENT_TOOLS`) está **deprecado** — fusionado en
+   `Config.agent.*.permission` (mismo shape string que `Config.permission`
+   raíz, ya usado en este archivo desde Fase 5.9b). La migración
+   automática de `tools` → `permission` tiene bugs reales documentados
+   río arriba (`anomalyco/opencode` issues #6892, #7810, #16028) — eso
+   explica por qué `tools.edit: true` nunca tuvo efecto real: no es que
+   no existiera un mecanismo, es que se estaba usando el mecanismo
+   equivocado (deprecado y roto), no el vigente.
+
+   Confirmado en el código fuente real (`session/tools.ts`,
+   `github.com/anomalyco/opencode`, tag `v1.18.18`): `ctx.ask()` arma su
+   `ruleset` con `Permission.merge(input.agent.permission,
+   input.session.permission ?? [])` — `agent.permission` es el campo real
+   que alimenta tanto qué se ofrece como qué se aprueba. Distinto de
+   `body.tools` (Fase 6.1/8c), que no pasa por acá.
+
+   **Verificado real, con evidencia directa, no solo confiando en el
+   código fuente ajeno**: con `agent.build.permission = {edit:"ask",
+   bash:"deny", write:"deny", webfetch:"deny", websearch:"deny",
+   apply_patch:"deny"}`, capturado con proxy HTTP real sobre
+   `OLLAMA_BASE_URL`: el array `tools` real incluyó `edit`, y
+   `bash`/`webfetch`/`apply_patch` desaparecieron correctamente (a
+   diferencia de `tools.edit:true`, que nunca lo logró). Sustituyendo
+   `edit:"ask"` por `read:"ask"` en el mismo mecanismo (mismo campo,
+   mismo código — `read` es un tool que el modelo SÍ invoca de forma
+   confiable, a diferencia de `edit`) se capturó un evento
+   `permission.asked` real y completo — confirma que este campo pasa por
+   el sistema de permisos real, sin el bypass que tenía `body.tools`.
+
+   **Honestidad de alcance**: no se logró un `permission.asked` real
+   específicamente para `"edit"` en esta sesión — 4 intentos reales
+   contra el CLI real (`guerrero agent run`, timeout de 120s cada uno,
+   `qwen3.5:2b`), ninguno llegó siquiera a pedir un permiso (el log real
+   de `opencode` no muestra ningún `asking` en esas corridas) — el modelo
+   se quedó "pensando" (`reasoning`) sin resolver dentro de la ventana,
+   mismo tipo de lentitud/no-determinismo ya documentado repetidas veces
+   con este modelo en este mismo archivo (6f/6h/6m/6p). La confirmación
+   de que el mecanismo funciona es por sustitución (`read`, mismo código),
+   no por observación directa de `edit`. **Pendiente real**: que Santiago
+   confirme con más paciencia (o corriendo `agent run` en un momento sin
+   contención de VRAM) que un intento real de `edit` dispara
+   `permission.asked` y que `AllowScopedMutationRule.evaluateEdit()` lo
+   evalúa correctamente contra un `request.input.filepath` real.
+
+   `BUILD_AGENT_TOOLS` (deprecado, confirmado sin efecto) se reemplazó
+   por `BUILD_AGENT_PERMISSION` (`apps/cli/src/commands/agent.ts`) —
+   `edit: "ask"`, el resto `"deny"`. Anomalía real sin explicar,
+   documentada no oculta: `write` siguió apareciendo en el catálogo real
+   pese a `"deny"` (a diferencia de `bash`/`webfetch`/`apply_patch`/
+   `websearch`, que sí desaparecieron) — posible bug de mapeo de nombres
+   similar al de `apply_patch`/`patch` (#16028), sin confirmar. Red de
+   seguridad real e independiente: `AllowScopedMutationRule.evaluate()`
+   deniega por defecto cualquier tool que no sea `read`/Code
+   Intelligence/`edit` — si `write` llega a pedirse, se deniega igual.
+
+   506 tests en verde, build/typecheck/lint limpios. Sin cambios en
+   `AllowScopedMutationRule` (no hacía falta — ya estaba lista desde
+   6.3, esperando exactamente esto).
+
 9. EVOLUTIVO, sin evidencia todavía — Fase 8 (Personal Engineering
    Profile), Fase 9 (Continuous Learning), MemoryEmbedding
    autogenerado en promoción (gap operacional ya documentado en cierre

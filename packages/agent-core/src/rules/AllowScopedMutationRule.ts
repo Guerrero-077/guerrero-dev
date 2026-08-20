@@ -78,16 +78,16 @@ const SENSITIVE_RELATIVE_PATHS: readonly string[] = [
  * `metadata.files`. Sin guarda, un `filepath` así resolvería como un solo path "raro" pero
  * técnicamente dentro del root, y esta regla aprobaría un patch multi-archivo sin haberlo
  * decidido — `evaluateEdit()` deniega explícitamente cualquier `request.input.files` (array)
- * o `filepath` con `", "`, aunque `write`/`apply_patch` sigan apagadas hoy en
- * `apps/cli/src/commands/agent.ts` (`BUILD_AGENT_TOOLS`): esta regla no debe depender de esa
- * otra capa para estar segura.
+ * o `filepath` con `", "`, aunque `write`/`apply_patch` estén denegadas hoy en
+ * `apps/cli/src/commands/agent.ts` (`BUILD_AGENT_PERMISSION`): esta regla no debe depender de
+ * esa otra capa para estar segura.
  *
  * **Estado real de alcanzabilidad en runtime**: esta clase decide sobre `"edit"` en cuanto
  * se registra en el composition root (`PERMISSION.edit: "ask"` fuerza el evento real desde
  * Fase 5.9b) — el estado actual de si la tool `edit` está habilitada para el modelo vive en
- * `BUILD_AGENT_TOOLS` (`apps/cli/src/commands/agent.ts`), no acá; no se repite ese valor en
- * este archivo para no desincronizarse de nuevo (ya pasó una vez, ver Fase 6.1 en
- * `docs/roadmap-maestro.md`).
+ * `BUILD_AGENT_PERMISSION` (`apps/cli/src/commands/agent.ts`), no acá; no se repite ese valor
+ * en este archivo para no desincronizarse de nuevo (ya pasó una vez con `BUILD_AGENT_TOOLS`,
+ * ver Fase 6.1 en `docs/roadmap-maestro.md`).
  */
 export class AllowScopedMutationRule implements PolicyRule {
   readonly name = "allow-scoped-mutation";

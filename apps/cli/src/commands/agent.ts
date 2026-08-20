@@ -140,45 +140,6 @@ const EXECUTION_TIMEOUT_MS = 120_000;
  * poder invocar esas tools — y, sin la posibilidad de desviarse, leyó el
  * archivo y respondió en texto (`finish: "stop"`, no `"tool-calls"`).
  *
- * `BUILD_AGENT_TOOLS` (nombre real: mapa de habilitación de
- * `Config.agent.build.tools`, `Agent["tools"]: {[key: string]: boolean}` del SDK — no
- * "todo deshabilitado", pese al nombre que tuvo hasta Fase 6.1) controla qué tools puede
- * intentar el agente `build` — `read`/`glob`/`grep` (solo lectura) quedan habilitadas por
- * default (no aparecen acá). `permission: {edit,bash,webfetch}: "ask"` (Fase 5.9b) queda
- * intacto como segunda capa: si en el futuro se reactiva alguna tool acá sin recordar
- * tocar este archivo, `IPolicyEngine` fail-closed las sigue denegando igual.
- *
- * **`write`/`apply_patch` comparten categoría de permiso con `edit` (hallazgo de Fase 6.1,
- * confirmado contra el binario real — ver JSDoc de `EDIT_TARGET_PATH_METADATA_KEY` en
- * `AllowScopedMutationRule.ts`)**: `apply_patch` (multi-archivo) manda
- * `metadata.filepath` como una lista unida por coma en vez de un único path. Mantenerlas en
- * `false` acá no es cosmético — `AllowScopedMutationRule.evaluateEdit()` ya tiene una guarda
- * explícita contra ese caso, pero esta es la primera línea de defensa: sin evidencia real de
- * que hagan falta, siguen apagadas.
- *
- * **`edit: true` (Fase 6.1, `7c81f28`) — diagnóstico cerrado, NO reactivar sin leer esto
- * completo**: la intención original era que el modelo pudiera intentar una edición real.
- * `EDIT_TARGET_PATH_METADATA_KEY` (`"filepath"`, `AllowScopedMutationRule.ts`) ya está
- * confirmado contra el binario real y una tool call real persistida — ese centinela dejó
- * de ser el problema. El problema real, encontrado con evidencia directa (proxy HTTP real
- * interceptando `OLLAMA_BASE_URL`, `docs/roadmap-maestro.md`): **`edit: true` acá adentro
- * NO logra que `edit` llegue al array `tools` real que se le manda al modelo** — verificado
- * con `qwen3.5:2b` y `qwen2.5:7b-instruct-q4_K_M`, contra el directorio real y uno limpio,
- * con y sin `tools` también a nivel raíz de `Config`: en los tres casos el array real
- * (capturado del `POST /v1/chat/completions` real) nunca incluyó `edit`, solo
- * `code-intelligence_*, glob, grep, question, read, skill, task, todowrite`. El único
- * mecanismo que sí lo agrega es `SessionPromptData.body.tools` (por-request, campo real del
- * SDK, `types.gen.d.ts:2254-2256`) — **y ese mecanismo bypassea `Config.permission`
- * enteramente**: verificado real, un `edit` real se ejecutó (archivo real modificado) en
- * ~50ms sin ningún evento `permission.asked`/`asking` de por medio — `IPolicyEngine` nunca
- * lo vio. Usarlo sería reabrir exactamente el hueco que 5.5b/5.9b/6g cerraron. No se usa
- * acá por esa razón, no por descuido. `edit: true` en esta constante queda como intención
- * documentada, sabiendo que hoy es inerte por esta vía — habilitar `edit` de verdad
- * necesita encontrar un mecanismo que agregue la tool al catálogo SIN pasar por
- * `body.tools`, todavía sin identificar. El log temporal de
- * `OpenCodeExecutionEngine.handlePermissionEvents()` se remueve junto con este cierre —
- * ya cumplió su propósito.
- *
  * **Corrección (Fase 6n) al párrafo de arriba**: "`read` nunca pasa por
  * `IPolicyEngine`" era cierto solo mientras `Config.permission` no
  * incluyera una entrada para `"read"` — no porque `"read"` no pudiera ser
@@ -187,15 +148,55 @@ const EXECUTION_TIMEOUT_MS = 120_000;
  * demostrados desincronizados del binario en 5.9d. Ver el JSDoc de
  * `CODE_INTELLIGENCE_PREFIXED_TOOL_NAMES` más abajo para la verificación
  * real.
+ *
+ * **`BUILD_AGENT_PERMISSION` reemplaza a `BUILD_AGENT_TOOLS` (Fase 6.1, cierre real —
+ * `docs/roadmap-maestro.md` ítem 8f)**. Historia real, no oculta: la primera versión de
+ * Fase 6.1 reactivó `edit` vía `Config.agent.build.tools.edit: true` — verificado real que
+ * eso NO agrega `edit` al array `tools` real que se le manda al modelo (capturado con un
+ * proxy HTTP sobre `OLLAMA_BASE_URL`, tres configuraciones distintas, siempre ausente). El
+ * único mecanismo que sí lo agregaba, `SessionPromptData.body.tools` (por-request), resultó
+ * bypassear `Config.permission` enteramente — un `edit` real se ejecutó sin ningún
+ * `permission.asked`, brecha real, no se usó. Investigando el código fuente real de OpenCode
+ * (`github.com/anomalyco/opencode`, tag `v1.18.18` — coincide con el binario instalado) se
+ * confirmó que `Config.agent.*.tools` (booleano) está **deprecado**, migrado a
+ * `Config.agent.*.permission` (string `"ask"/"allow"/"deny"`, mismo shape que
+ * `Config.permission` raíz) — la migración automática de `tools` a `permission` tiene bugs
+ * reales y documentados río arriba (`anomalyco/opencode` issues #6892, #7810, #16028), lo
+ * que explica por qué `tools.edit: true` nunca tuvo efecto acá. `session/tools.ts` (fuente
+ * real) confirma que `ctx.ask()` arma su `ruleset` con
+ * `Permission.merge(input.agent.permission, input.session.permission ?? [])` — es decir,
+ * `agent.permission` SÍ es el campo real que controla tanto qué se ofrece como qué se
+ * aprueba, a diferencia de `body.tools`.
+ *
+ * **Verificado real, con evidencia directa, antes de confiar en el código fuente ajeno**:
+ * con `agent.build.permission = {edit:"ask", bash:"deny", ...}` (esta constante), el array
+ * `tools` real capturado por proxy incluyó `edit` — y, con el mismo mecanismo aplicado a
+ * `read: "ask"` (sustituto confiable de `edit`, que el modelo invoca de forma consistente,
+ * a diferencia de `edit`), se capturó un evento `permission.asked` real completo — confirma
+ * que este campo sí pasa por el sistema de permisos real, sin bypass. No se logró un
+ * `permission.asked` real específicamente para `edit` en esta sesión (el modelo no llegó a
+ * intentarlo dentro de las ventanas de tiempo probadas — la misma falta de fiabilidad de
+ * este modelo ya documentada repetidas veces en este archivo) — la confirmación es por
+ * sustitución del mismo mecanismo, no observación directa de `edit`. Pendiente de que
+ * Santiago lo confirme en una corrida real con más paciencia.
+ *
+ * **Anomalía real, sin explicar, documentada para no ocultarla**: `write` siguió apareciendo
+ * en el array real pese a `permission.write: "deny"` acá (a diferencia de `bash`/`webfetch`/
+ * `apply_patch`/`websearch`, que sí desaparecieron correctamente) — posible bug de mapeo de
+ * nombres similar al de `apply_patch`/`patch` documentado en el issue #16028 río arriba, sin
+ * confirmar. Red de seguridad real e independiente de esto:
+ * `AllowScopedMutationRule.evaluate()` deniega por defecto cualquier `toolName` que no sea
+ * `"read"`/Code Intelligence/`"edit"` — si `write` llega a pedirse, esta regla la deniega
+ * igual, sin depender de que OpenCode la haya excluido bien del catálogo.
  */
-const BUILD_AGENT_TOOLS = {
-  bash: false,
-  edit: true, // intención documentada, hoy inerte vía este mapa — ver JSDoc arriba (Fase 6.1)
-  write: false,
-  webfetch: false,
-  websearch: false,
-  apply_patch: false,
-} as const;
+const BUILD_AGENT_PERMISSION: Record<string, "ask" | "allow" | "deny"> = {
+  edit: "ask",
+  bash: "deny",
+  write: "deny",
+  webfetch: "deny",
+  websearch: "deny",
+  apply_patch: "deny",
+};
 
 /**
  * Fase 5.12: verificando Fase 5.11 (subagentes ya visibles para
@@ -389,10 +390,10 @@ const MAX_AGENT_STEPS = 6;
  * y agrega una segunda categoría real, `edit`, con su propia validación
  * (contención en `projectRootPath` + deny-list de rutas sensibles del
  * propio repo). **Estado real, corregido (ver Fase 6.1 arriba, no
- * repetido acá)**: `edit` ya está reactivada en `BUILD_AGENT_TOOLS`
- * desde 6.1 — este párrafo describe el momento en que se registró la
- * regla (todavía con la tool apagada); el estado actual de "alcanzable
- * o no en runtime" vive en el JSDoc de Fase 6.1, no en este.
+ * repetido acá)**: `edit` se ofrece de verdad al modelo desde
+ * `BUILD_AGENT_PERMISSION` — este párrafo describe el momento en que se
+ * registró la regla (todavía con la tool inalcanzable); el estado actual
+ * vive en el JSDoc de Fase 6.1, no en este.
  */
 export function registerAgentCommands(program: Command): void {
   const agent = program.command("agent").description("Ejecuta al agente de Guerrero Dev");
@@ -463,7 +464,7 @@ export function registerAgentCommands(program: Command): void {
             // desactualizado del SDK.
             permission: PERMISSION,
             agent: {
-              build: { tools: BUILD_AGENT_TOOLS, maxSteps: MAX_AGENT_STEPS },
+              build: { permission: BUILD_AGENT_PERMISSION, maxSteps: MAX_AGENT_STEPS },
               general: { maxSteps: MAX_AGENT_STEPS },
             },
           },
