@@ -40,7 +40,7 @@ Fase 3 — Project Intelligence               ✅ COMPLETADA
 Fase 4 — Code Intelligence                  ✅ COMPLETADA
 Fase 5 — Agent Core real (LLM conectado)    ✅ COMPLETADA (sustancial —
                                                6p diferido, ver §3)
-Fase 6 — Developer Tools                    ⛔ NO INICIADA
+Fase 6 — Developer Tools                    ✅ COMPLETADA (6.1-6.3)
 Fase 7 — Autonomous Workflows               ⛔ NO INICIADA
 Fase 8 — Personal Engineering Profile       🔵 EVOLUTIVO
 Fase 9 — Continuous Learning                🔵 EVOLUTIVO
@@ -167,35 +167,34 @@ bloquea `guerrero agent run`.
 
 ### Fase 6 — Developer Tools
 
-**Estado: ⛔ No iniciada (diseño abierto).** Git tools, edición de
-archivos, ejecución de terminal — bajo permisos explícitos.
-`PolicyEngine`/`PolicyRule` ya existen desde Fase 1 (fail-closed real,
+**Estado: ✅ Completada (6.1-6.3).** Git tools, edición de archivos,
+ejecución de terminal — bajo permisos explícitos. `PolicyEngine`/
+`PolicyRule` ya existen desde Fase 1 (fail-closed real,
 `PolicyEvaluator.ts`, `AllowReadRule` desde 5.13) y desde 6n/6r sí
 deciden algo real en el flujo de `guerrero agent run` — el gap de
 vocabulario `toolName` entre `PolicyRule` y las categorías de permiso de
-OpenCode está reconciliado (verificado real, ver 6r). Lo que falta para
-que Fase 6 tenga sentido ya no es un problema de wiring: es que no
-existe todavía ninguna `PolicyRule` que apruebe `edit`/`bash`
-(correctamente — sin capacidades reales de Developer Tools, no hay nada
-legítimo que aprobar ahí). Distinto de Code Intelligence (Fase 4): esa
-responde "¿qué existe y qué significa?", esto responde "haz X sobre el
-sistema" — no deben mezclarse.
-
-Primera ronda de diseño publicada en `docs/fase-6-developer-tools-map.md`
-(sin código): confirma que `edit`/`bash` no son problema de wiring, deja
-explícito que "git tools" no es una categoría de permiso propia (es un
-subconjunto de `bash`), y bloquea cualquier `PolicyRule` de mutación real
-hasta capturar la forma exacta de `permission.asked.properties.metadata`
-para `edit` en una máquina con Ollama + `opencode serve` reales (backlog
-§7 ítem 8). `bash` queda fuera del primer incremento propuesto por
-riesgo de ejecución arbitraria muy superior a `edit`.
+OpenCode está reconciliado (verificado real, ver 6r). **Fase 6.1**: Edit
+tool habilitado (`BUILD_AGENT_PERMISSION`, `Config.agent.build.permission`
+reemplaza al deprecado `Config.agent.build.tools`). **Fase 6.2**:
+`AllowScopedMutationRule` (`packages/agent-core/src/rules/`) reemplaza a
+`AllowReadRule` en el composition root — absorbe `read` + Code Intelligence
+y agrega `edit` con validación de path (dentro de `projectRootPath`,
+fuera de deny-list de `.env`/`.git/`/migraciones aplicadas). Confirmado
+de punta a punta: caso positivo (editar `package.json` → aprobado) y
+negativo (editar `.env` → denegado). **Fase 6.3**: MCP Code Intelligence
+Server (`packages/mcp/src/CodeIntelligenceMcpServer.ts`) envuelve
+`CodeIntelligenceToolHandler` como herramientas MCP, con `server.ts` como
+entrypoint para spawnear vía `Config.mcp`. CI/CD consolidado: workflows
+`ci.yml` (build+typecheck+lint+test) e `integration.yml` (integration+E2E
+con pgvector), branch protection (develop→qa→staging→main), todos los
+branches fusionados a `main`. 506+ tests en verde.
 
 ### Fase 7 — Autonomous Workflows
 
 **Estado: ⛔ No iniciada.** `observe → plan → propose → permission →
 execute → validate → report`. Depende de Fase 5 (loop real con LLM) y
-Fase 6 (herramientas reales) funcionando juntas — no tiene sentido
-diseñarla en detalle todavía.
+Fase 6 (herramientas reales) — ambas completadas. Precondición cumplida.
+Diseño pendiente.
 
 ### Fase 8 — Personal Engineering Profile
 
@@ -258,15 +257,15 @@ con la visión original y con lo que falta.
 
 - No autoriza ninguna implementación nueva por sí mismo — Fase 5
   unificada (5.1-5.5, 6n) queda sustancialmente cerrada, con 6p
-  diferido explícitamente (ver 6r). El próximo candidato real es Fase 6
-  (Developer Tools) cuando haya evidencia de que hace falta, con el
-  mismo ritual usado en 4.x-6.x: audit → decisiones → propuesta formal
-  → aprobación → implementación → verificación real → commit →
+  diferido explícitamente (ver 6r). Fase 6 (Developer Tools) cerrada
+  (6.1-6.3). El próximo candidato real es Fase 7 (Autonomous Workflows),
+  con el mismo ritual usado en 4.x-6.x: audit → decisiones → propuesta
+  formal → aprobación → implementación → verificación real → commit →
   checkpoint, en una conversación separada.
 - No congela un modelo LLM específico — da la clase de modelo
   recomendada y por qué, no el nombre exacto.
 - No renombra ni reescribe ningún documento de cierre existente.
-- No trata Fase 6-9 como diseñadas — son marcadores de posición en la
+- No trata Fase 7-9 como diseñadas — son marcadores de posición en la
   secuencia, cada una necesita su propia auditoría cuando le toque el
   turno, exactamente como cada subfase de 4.x-6.x la tuvo.
 
@@ -966,19 +965,12 @@ entrada propia fue 6b. Ver también el resumen de estado real en §3.
    qué el package sigue siendo placeholder a propósito, con referencia a
    `fase-6-to-7-reconciliation.md` §3. Build/lint limpios.
 
-8. AUDITORÍA ABIERTA (diseño, sin código) — Fase 6 (Developer Tools):
-   con Fase 5 unificada cerrada (§3), la precondición de este ítem ya se
-   cumplió. Primera ronda de diseño publicada en
-   `docs/fase-6-developer-tools-map.md` — confirma que el wiring ya está
-   resuelto (mismo puente de `OpenCodeExecutionEngine.handlePermissionEvents()`
-   que ya intercepta cualquier categoría real de permiso) y que lo que
-   falta es evidencia real (forma de `permission.asked.properties.metadata`
-   para `edit`, capturable solo en una máquina con Ollama + `opencode
-   serve` reales) más una decisión de diseño sobre cómo componer una
-   `PolicyRule` de mutación con `AllowReadRule` bajo el modelo AND actual
-   de `PolicyEvaluator` — ver ese documento §5 para el detalle. Siguiente
-   paso real es 6.1 (captura de evidencia), pendiente de Santiago — ver
-   8b para lo que ya se implementó mientras tanto.
+8. CERRADO — Fase 6 (Developer Tools): completada en subfases 6.1-6.3.
+   8b-8g documentan el detalle completo: AllowScopedMutationRule,
+   descubrimiento y resolución del campo deprecado `Config.agent.build.tools`
+   (reemplazado por `Config.agent.build.permission`), confirmación de punta
+   a punta con casos positivo/negativo, y MCP Code Intelligence Server.
+   Ver §3 para el resumen ejecutivo.
 
    Fase 7 (Autonomous Workflows) sigue diferida sin evidencia — depende
    de que Fase 6 dé herramientas reales primero.
