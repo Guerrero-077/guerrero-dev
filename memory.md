@@ -105,6 +105,25 @@ Este archivo registra errores conocidos, workarounds activos, y patrones de debu
 - **Workaround:** `AllowScopedMutationRule` deniega `write` por defecto (solo aprueba `read`, Code Intelligence, y `edit` con validación). Red de seguridad independiente.
 - **Estado:** Conocido, mitigado por AllowScopedMutationRule.
 
+### 12. pnpm version conflict en GitHub Actions
+
+- **Archivo:** `.github/workflows/ci.yml`, `.github/workflows/integration.yml`
+- **Componente:** `pnpm/action-setup@v4`
+- **Symptom:** `Error: Multiple versions of pnpm specified` — el action detecta `version: 9` en el workflow YAML y `pnpm@9.15.0` en `package.json`'s `packageManager`. Falla con `ERR_PNPM_BAD_PM_VERSION`.
+- **Causa:** `pnpm/action-setup@v4` lee `packageManager` de `package.json` automáticamente. Si además se especifica `version:` en el workflow, conflicta.
+- **Fix:** Quitar `version:` del workflow. Dejar que lea de `package.json`.
+- **Estado:** Resuelto. Commits `17cd7cb`.
+
+### 13. Tests cross-platform fallan por paths de Windows con backslashes
+
+- **Archivo:** `packages/agent-core/src/rules/AllowScopedMutationRule.test.ts`
+- **Componente:** Tests de `AllowScopedMutationRule`
+- **Symptom:** Test "deniega una ruta sensible con path absoluto real de Windows" falla en CI (Linux) con: `expected "C:/Dev/agente/guerrero-dev/.env" to contain 'deny-list'` — el motivo real es `"está fuera de projectRootPath: denegado"`.
+- **Causa:** En Linux, `path.resolve("C:/...", "C:/.../.env")` produce `/C:/.../.env` (con `/` al inicio porque Linux trata `C:` como nombre de directorio relativo). `path.relative(root, "/C:/...")` calcula `../../C:/...` → "fuera de root". El test nunca llega a la check de deny-list.
+- **Fix:** Usar paths Linux (`/home/user/guerrero-dev/.env`) que funcionan en ambas plataformas — Node.js en Windows acepta `/` como separador válido. No intentar simular paths de Windows en tests.
+- **Regla:** Los tests que usan paths absolutos deben usar formato Linux (`/...`) — funciona en Windows y Linux. Nunca hardcodear `C:\\...` en tests.
+- **Estado:** Resuelto. Commit `c2d7c49`.
+
 ---
 
 ## Workarounds activos
@@ -153,6 +172,16 @@ Este archivo registra errores conocidos, workarounds activos, y patrones de debu
 1. Asegurar `docker compose up -d postgres`
 2. Asegurar `pnpm build` antes de correr tests (el subpath `./app` se importa desde `dist/`)
 3. Usar `--no-file-parallelism` — los tests están serializados a propósito
+
+### CI falla con "Multiple versions of pnpm"
+1. Quitar `version:` de `.github/workflows/*.yml`
+2. `pnpm/action-setup@v4` lee de `package.json`'s `packageManager` automáticamente
+
+### Test falla en CI pero pasa en Windows
+1. Verificar si el test usa paths con `\\` (backslashes de Windows)
+2. En Linux, `path.resolve("C:/...", "C:/...")` produce `/C:/...` — se resuelve fuera del root
+3. Usar paths Linux (`/home/user/...`) que funcionan en ambas plataformas
+4. Nunca hardcodear `C:\\` en tests — usar `/` que es válido en Windows y Linux
 
 ---
 
